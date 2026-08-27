@@ -6,8 +6,8 @@ This repository contains the complete computational workflow, QIIME 2 shell scri
 
 ## 📌 Data Availability & Accessions
 
-* **NCBI SRA BioProject:** [PRJNAXXXXXX](https://www.ncbi.nlm.nih.gov/bioproject/PRJNAXXXXXX) (BioSamples: `SAMNXXXXXX`–`SAMNXXXXXX`)
-* **Target Region:** 16S rRNA gene (Full-length / V3–V4)
+* **NCBI SRA BioProject:** [PRJNA1480827](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA1480827) (BioSamples: `SAMN61041669`–`SAMN61041689`)
+* **Target Region:** 16S rRNA gene (V3–V4)
 
 ---
 
