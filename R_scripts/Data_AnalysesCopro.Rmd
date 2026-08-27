@@ -1,0 +1,2278 @@
+---
+title: "Data Visualization of Coprofagia Metabarcoding Study"
+author: "Victor Guillermo Cornejo Villanueva"
+date: "2026-05-17"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Load necessary libraries
+
+```{r}
+library(phyloseq)
+library(ggplot2)
+library(readxl) 
+library(dplyr)            # 3_Beta_diversity/ To use the function %>%
+library(tibble)
+library(utils)
+library(writexl)
+library(vegan)         
+library(ggVennDiagram)    # 1_Rarefaction_curves/Venn Diagram
+library(ggpubr)           # 2_Alpha_diversity
+library(gplots)           # 2_Alpha_diversity
+library(RColorBrewer)     # 2_Alpha_diversity/Advanced plot
+library(plotly)           # 3_Beta_diversity/3D plots
+library(pairwiseAdonis)   # 3_Beta_diversity/Adonis
+library(microbial)        # 3_Beta_diversity/2D Extra plot & 5_Taxonomic_barplot library(devtools) | install_github("guokai8/microbial")
+library(tidyverse)        # 4_Heatmap/Option B
+library(scales)           # 5_Taxonomic_barplots
+library(GUniFrac)         # 8_LDA/Beta_diversity
+library(tidyr)            # 8_LDA/Family_significance
+library(broom)            # 8_LDA/Family_significance
+library(agricolae)        # 2_Alpha_diversity/Alternative
+library(VennDiagram)      # 10_Venn_Diagram
+library(zoo)              # 10_Venn_Diagram
+library(venn)             # 10_Venn_Diagram
+library(ggpolypath)       # 10_Venn_Diagram
+library(UpSetR)           # 10_Venn_Diagram - Option 2
+library(biomformat)       # 12_Biom 
+library(ape)              # 12_Biom
+
+# If you have Ubuntu install first 'devtools'
+### https://www.reddit.com/r/debian/comments/101d4fo/error_while_installing_devtools_in_r_in_a_debian/
+library(xfun)
+library(qiime2R)
+library(phyloseq)
+library(ranacapa)   # 1_Rarefaction_curves/Groups
+library(microeco)   # 8_LDA
+library(microbiomeMarker)    # 4_Heatmap /4.3
+library(metacoder)  # 9_Heat_tree
+library(MicrobiotaProcess)  # 10_Venn_Diagram
+
+## Check R Documentation in reading Artifacts (.qza) with qiime2R
+# ?read_qza
+```
+
+# Set the working directory
+
+```{r}
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia")
+# Check files inside the working directory
+list.files()
+```
+
+## Read a table of sequence variants
+
+```{r}
+SVs <- read_qza("filtered-table-genus.qza")
+names(SVs)
+
+## To access the actual data stored within the object
+SVs$data[1:5, 1:5] # show first 5 samples and first 5 taxa
+
+## To look the unique identifier of the object
+SVs$uuid
+
+## To see the type of artifact
+SVs$type
+
+## To obtain a complete list of the files within the artifact and their sizes
+SVs$contents
+
+## To print the providence
+print_provenance(SVs)
+```
+
+## Read Metadata
+
+```{r}
+metadata <- read_q2metadata("metadata.tsv") # 2nd line have to start with #q2:types
+head(metadata) # show top lines of metadata
+```
+
+## Read Taxonomy
+
+```{r}
+taxonomy <- read_qza("taxa.qza")
+head(taxonomy$data)
+```
+
+## Read Tree
+
+```{r}
+tree <- read_qza("tree/rooted_tree.qza")
+tree_file <- tree$data
+```
+
+# 0.1 Create a Phyloseq Object with .qza files
+
+```{r}
+physeq_O <- qza_to_phyloseq(
+  features = "filtered-table-genus.qza",
+  tree = "tree/rooted_tree.qza",
+  taxonomy = "taxa.qza",
+  metadata = "metadata.tsv"
+)
+
+physeq_O
+```
+
+## Remove Archaea and Eukaryota
+
+```{r}
+## https://www.biostars.org/p/9513395/
+physeq_OF <- subset_taxa(physeq_O, Kingdom !="d__Archaea")
+# physeq_OF
+physeq_OF <- subset_taxa(physeq_OF, Kingdom !="d__Eukaryota")
+physeq_OF
+head(tax_table(physeq_OF))
+
+taxa <- tax_table(physeq_OF)
+write.csv(taxa, "taxa_phyloseq.csv")
+```
+
+# 0.2. Create a phyloseq object with Excel files
+
+## From the .qza files imported, transform it to Excel files, and edit to upload later
+
+```{r}
+# https://vaulot.github.io/tutorials/Phyloseq_tutorial.html
+OTUs <- SVs$data 
+taxonomy_table <- physeq_OF@tax_table@.Data
+OTU_matrix <- physeq_OF@otu_table@.Data
+
+class(taxonomy_table)
+
+options(max.print=999999)
+capture.output(taxonomy_table, file = "Taxonomy_table.txt")
+capture.output(OTU_matrix, file = "OTU_matrix.txt")
+```
+
+## Generate and load the function generate_samples_xlsx
+
+```{r}
+source("generate_samples_xlsx.R") 
+generate_samples_xlsx("metadata.tsv")
+```
+
+## Generate and load the function generate_otu_xlsx
+
+```{r}
+source("generate_otu_xlsx.R") 
+generate_otu_xlsx("OTU_matrix.txt", "Samples.xlsx")
+```
+
+## Generate and load the function generate_taxonomy_xlsx
+
+```{r}
+source("generate_taxonomy_xlsx.R") 
+generate_taxonomy_xlsx("Taxonomy_table.txt")
+```
+
+## Read the data and create phyloseq objects
+
+```{r}
+otu_mat <- read_excel('OTU_matrix.xlsx') # OTU table
+tax_mat <- read_excel('Taxonomy_table.xlsx') # Tax table
+samples_df <- read_excel('Samples.xlsx') # Samples - metadata
+
+# Define the row names from the OTU column
+otu_mat <- otu_mat %>%
+  tibble::column_to_rownames("OTU")
+
+# Idem for the two other matrices
+tax_mat <- tax_mat %>%
+  tibble::column_to_rownames("OTU")
+
+samples_df <- samples_df %>%
+  tibble::column_to_rownames("SampleID")
+
+# Transform into matrixes otu and tax tables
+otu_mat <- as.matrix(otu_mat)
+tax_mat <- as.matrix(tax_mat)
+
+# Transform and creating a Phyloseq Object
+OTU = otu_table(otu_mat, taxa_are_rows = TRUE)
+TAX = phyloseq::tax_table(tax_mat) # https://github.com/joey711/phyloseq/issues/1597
+samples = sample_data(samples_df)
+
+physeq_M <- phyloseq(OTU, TAX, samples)
+physeq_M
+```
+
+## Removing Archaea and Eukaryota
+
+```{r}
+## https://www.biostars.org/p/9513395/
+physeq_MF <- subset_taxa(physeq_M, Kingdom !="Archaea")
+### physeq_MF
+physeq_MF <- subset_taxa(physeq_MF, Kingdom !="Eukaryota")
+physeq_MF
+
+## Visualize data
+sample_names(physeq_MF) #samples
+
+rank_names(physeq_MF) #Taxonomy
+
+sample_variables(physeq_MF) #variables
+```
+
+# 0.3. Normalization
+
+```{r}
+# To normalize the number of reads in each sample using median sequencing depth
+# With this, physeq_N is different to physeq_OF
+# Fundamental for the PCoA plots and differential abundance testing
+
+total = median(sample_sums(physeq_MF))
+standf = function(x, t=total) round(t * (x / sum(x)))
+physeq_N = transform_sample_counts(physeq_MF, standf)
+physeq_N
+```
+
+# 1. Rarefaction Curves
+
+```{r}
+## https://fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/ (Important)
+## https://micca.readthedocs.io/en/latest/phyloseq.html (2nd important)
+
+## Set the file for the results
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia/1_Rarefaction_curves")
+
+tab <- otu_table(physeq_MF)@.Data
+class(tab) #it has to be a matrix (https://stackoverflow.com/questions/74530039/error-vegan-rarecurve-error-in-asx-matrixi-j-drop-false-subscript)
+rarecurve(t(tab), step=50, cex=0.5)
+#### Save as "Rarefaction_curve_simple.png"
+
+raremax <- min(rowSums(t(tab)))
+raremax
+col <- c("black", "darkred", "forestgreen", "orange3", "blue", "hotpink")
+lty <- c("solid", "dashed", "longdash", "dotdash")
+rarecurve(t(tab), step = 20, col = col, lty = lty, label = TRUE)
+#### Save as "Rarefaction_curve_samples_colors.png"
+
+write.csv(tab, "sample_size_per_species.csv", row.names=FALSE)
+```
+
+## 1.1. Sample size per groups
+
+```{r}
+# Generate and load the function generate_grouped_xlsx
+source("generate_grouped_xlsx.R") 
+generate_grouped_xlsx(
+  counts_input = "1_Rarefaction_curves/sample_size_per_species.csv", 
+  metadata_input = "Samples.xlsx",
+  output_name = "1_Rarefaction_curves/sample_size_per_groups.xlsx"
+)
+
+tab_groups <- read_excel('1_Rarefaction_curves/sample_size_per_groups.xlsx') 
+raremax2 <- min(rowSums(t(tab_groups)))
+raremax2
+
+# High-contrast colors
+group_colors <- c("#008B8B", "#8A2BE2", "#D95F02")
+# Distinct line textures: 1 = solid (CON), 2 = dashed (SCP), 5 = long-dash (CP)
+group_line_types <- c(1, 2, 5)
+
+# Set label = FALSE to clean up the overlapping text boxes from the plot
+rarecurve(t(tab_groups), step = 20, col = group_colors, lty = group_line_types, label = FALSE)
+abline(v = raremax2)
+
+# Add a clean, non-overlapping legend in the bottom-right corner
+legend("bottomright", 
+       legend = c("CON", "SCP", "CP"), 
+       col = group_colors, 
+       lty = group_line_types, 
+       lwd = 2.5, 
+       bty = "n")
+# Save as "Rarefaction_curve_groups_colors.png"
+```
+
+## 1.2. Generate the faceted plot
+
+```{r}
+# 0. Re-order the group factors within the phyloseq object
+physeq_MF@sam_data$group <- factor(physeq_MF@sam_data$group, levels = c("CON", "SCP", "CP"))
+
+# 1. Generate the base rarefaction curves
+p_rare_base <- ggrare(physeq_MF, step = 50, color = "group", label = "Sample", se = FALSE)
+
+p_rare <- p_rare_base +
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP"))
+
+# 2. Add the Facet Layer to separate by group
+p_faceted <- p_rare + 
+  facet_wrap(~group, ncol = 3) + # This creates 3 side-by-side columns
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"),
+                     breaks = c("CON", "SCP", "CP")) +
+  theme_bw() +                  # Clean white background for publications
+  labs(
+    x = "Sequence Sample Size", 
+    y = "Species Richness", 
+    title = "Rarefaction Curves per Group"
+  ) +
+  theme(
+    legend.position = "right",
+    strip.background = element_rect(fill = "gray90"), # Labels on top of each plot
+    strip.text = element_text(face = "bold")
+  )
+
+# 3. View and save the plot
+print(p_rare)
+print(p_faceted)
+ggsave("1_Rarefaction_curves/Rarefaction_faceted_groups.png", p_faceted, width = 12, height = 5, dpi = 300)
+```
+
+## 1.3. Venn Diagram of Shared ASVs
+
+```{r}
+# 1. Merge samples by group to see presence/absence per group
+group_merged <- merge_samples(physeq_MF, "group")
+
+# 2. Identify the list of ASVs present in each group
+# We consider an ASV present if its count is > 0 after merging
+asv_list <- list(
+  CON = colnames(otu_table(group_merged))[otu_table(group_merged)["CON", ] > 0],
+  SCP = colnames(otu_table(group_merged))[otu_table(group_merged)["SCP", ] > 0],
+  CP  = colnames(otu_table(group_merged))[otu_table(group_merged)["CP", ] > 0]
+)
+
+# 3. Create the Venn Diagram
+p_venn <- ggVennDiagram(asv_list, label_alpha = 0, edge_lty = "dashed", edge_size = 1) +
+  scale_fill_gradient(low = "blue", high = "red") + # To match the 'count' scale in the image
+  labs(title = "Distribution of ASVs among Groups",
+       fill = "Count") +
+  theme(legend.position = "right")
+p_venn
+
+# Save the plot
+ggsave("1_Rarefaction_curves/Venn_ASV_distribution.png", p_venn, width = 8, height = 7, dpi = 300)
+```
+
+# 2. Alpha Diversity
+
+```{r}
+# https://rpubs.com/lconteville/713954 
+# https://github.com/kassambara/ggpubr/issues/65
+
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia")
+
+shannon <- read_qza("core-metrics-results/shannon_vector.qza")
+shannon <- shannon$data %>% rownames_to_column("ID") #to move the sample names to a new column
+
+# Set the file for the results
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia/2_Alpha_diversity")
+
+# Save the Shannon output
+capture.output(shannon, file = "Shannon_entropy.txt")
+
+# Check if there's an extra sample not assigned to a Shannon diversity value
+gplots::venn(list(metadata=metadata$SampleID, shannon=shannon$ID)) 
+```
+
+## 2.1. Estimate Richness
+
+```{r}
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia/2_Alpha_diversity")
+
+richness <- estimate_richness(physeq_OF)
+head(richness)
+write.table(richness, file = "richness.tsv", sep = ",", quote = FALSE, row.names = T)
+
+# Fix the factor order inside the phyloseq object before plotting
+physeq_OF@sam_data$group <- factor(physeq_OF@sam_data$group, levels = c("CON", "SCP", "CP"))
+
+# Plot richness
+plot_richness(physeq_OF)
+
+a_my_comparisons_group <- list( c("CON", "SCP"), c("CON", "CP"), c("SCP", "CP"))
+
+symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))
+
+plot_richness(physeq_OF, x = "group", color = "group", measures = c("Observed", "Chao1","Shannon"), title = "Alpha diversity indices of samples") + 
+  geom_boxplot(alpha = 0.6) +
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  theme(legend.position = "right", axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=12)) +
+  stat_compare_means(method = "wilcox.test", comparisons = a_my_comparisons_group, label = "p.signif", symnum.args = symnum.args)
+ggsave("alpha_diversity_group.svg", height = 7, width = 8, dpi = 300, device = "svg")
+
+plot_richness(physeq_OF, x = "group", color = 'group', measures = c("Observed","Shannon"), title = "Alpha diversity indices of samples") + 
+  geom_boxplot(alpha = 0.6) +
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  theme(legend.position = "right", axis.text.x=element_text(angle=45, hjust=1, vjust=1, size=12))
+ggsave("alpha_diversity_group_without_NS.svg", height = 7, width = 6, dpi = 300, device = "svg")
+```
+
+## 2.2. Enhanced Alpha Diversity Plotting Script
+
+```{r}
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia/2_Alpha_diversity")
+
+# 1. Define a professional color palette
+# CON = Grey/Black, CP = Red, SCP = Blue
+my_colors <- c("CON" = "#008B8B", "CP" = "#8A2BE2", "SCP" = "#D95F02")
+
+# 2. Define statistical comparisons
+a_my_comparisons_group <- list(c("CON", "SCP"), c("CON", "CP"), c("SCP", "CP"))
+
+# 3. Create the optimized plot
+p_alpha <- plot_richness(physeq_OF, x = "group", color = "group", 
+                         measures = c("Observed", "Chao1", "Shannon"), 
+                         title = "Alpha Diversity Indices") + 
+  # Use points + boxplot for better data distribution visibility
+  geom_boxplot(aes(fill = group), alpha = 0.2, outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  
+  # Scientific Theme Enhancements
+  theme_classic(base_size = 14) + 
+  scale_color_manual(values = my_colors) +
+  scale_fill_manual(values = my_colors) +
+  
+  # Adjust text for clarity
+  theme(
+    strip.background = element_blank(), # Removes the grey boxes behind titles
+    strip.text = element_text(face = "bold", size = 12),
+    axis.title.x = element_blank(),
+    legend.position = "none", # Often better to remove legend if x-axis is labeled
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  ) #+
+  
+  # Statistical comparison with optimized label height
+  # stat_compare_means(method = "wilcox.test", 
+                     #comparisons = a_my_comparisons_group, 
+                     #label = "p.signif",
+                     #step.increase = 0.1)
+p_alpha
+
+# 4. Save as high-resolution SVG
+ggsave("alpha_diversity_high_level.svg", plot = p_alpha, height = 5, width = 8, dpi = 300)
+```
+
+## 2.3. Alpha Plot richness
+
+```{r}
+p1 = plot_richness(physeq_OF, x="group", color = "group", measures=c("Chao1", "Shannon"))
+p1 + geom_point(size=5, alpha=0.7) +
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP"))
+
+ggsave("2_Alpha_diversity/alpha_plot_richness_group.tiff", height = 7, width = 6, dpi = 300, device = "tiff")
+```
+
+## 2.4. Create an histogram to check if the Shannon values estimated for the metagenomes are normally distributed
+
+```{r}
+hist(richness$Shannon, main="Shannon index", xlab="")
+# Save as "histogram_Shannon-index.tiff"
+```
+
+## 2.5. Analysis of variance (ANOVA)
+
+```{r}
+anova.sh.group = aov(richness$Shannon ~ group, metadata)
+summary_ANOVA_shannon_group = summary(anova.sh.group)
+summary_ANOVA_shannon_group
+capture.output(summary_ANOVA_shannon_group, file = "2_Alpha_diversity/ANOVA_Shannon_Group.txt")
+
+anova.ch1.group = aov(richness$Chao1 ~ group, metadata)
+summary_ANOVA_chao1_group = summary(anova.ch1.group)
+summary_ANOVA_chao1_group
+capture.output(summary_ANOVA_chao1_group, file = "2_Alpha_diversity/ANOVA_Chao1_Group.txt")
+```
+
+## 2.6. Tukey Honest Significant Differences (Tukey HSD)
+
+```{r}
+TukeyHSD_shannon_group = TukeyHSD(anova.sh.group)
+TukeyHSD_shannon_group
+capture.output(TukeyHSD_shannon_group, file = "2_Alpha_diversity/TukeyHSD_Shannon_Group.txt")
+
+TukeyHSD_chao1_group = TukeyHSD(anova.ch1.group)
+TukeyHSD_chao1_group
+capture.output(TukeyHSD_chao1_group, file = "2_Alpha_diversity/TukeyHSD_Chao1_Group.txt")
+```
+
+## 2.7. Kruskall-Wallis Rank Sum Test (for non-normally distributed data)
+
+```{r}
+Kruskall_group = kruskal.test(richness$Shannon ~ group, metadata)
+Kruskall_group
+capture.output(Kruskall_group, file = "2_Alpha_diversity/Kruskall_Group.txt")
+```
+
+## 2.8. Wilcoxon Tests considering each pair of groups
+
+```{r}
+Wilcoxon_group = pairwise.wilcox.test(richness$Shannon, metadata$group, p.adj = "bonf")
+Wilcoxon_group
+capture.output(Wilcoxon_group, file = "2_Alpha_diversity/Wilcoxon_Group.txt")
+```
+
+# 3. Beta diversity
+
+```{r}
+# https://rpubs.com/maddieSC/R_SOP_UCR_Jan_2018
+
+# Create the directory
+output_path <- "3_Beta_diversity"
+# showWarnings = FALSE prevents R from complaining if the folder is already there
+# recursive = TRUE ensures all parent folders are created if they don't exist
+dir.create(output_path, showWarnings = FALSE, recursive = TRUE)
+
+# Verification message
+if (dir.exists(output_path)) {
+  message("Ready to save files in: ", output_path)
+}
+
+# Set the file for the results
+knitr::opts_knit$set(root.dir = "~/Escritorio/R/2026_COPROFAGIA/coprofagia/3_Beta_diversity")
+```
+
+## 3.1. OTU-based metrics
+
+```{r}
+OTUs = physeq_OF@otu_table@.Data # To use the “group” column as the row names so that it will match our metadata
+OTU_final = as.data.frame(t(OTUs)) #transpose # https://www.dataanalytics.org.uk/rotating-or-transposing-r-objects/#:~:text=Rotating%20or%20transposing%20R%20objects&text=That%20is%2C%20you%20transpose%20the,use%20the%20t()%20command.&text=The%20result%20of%20the%20t()%20command%20is%20always%20a%20matrix%20object.&text=You%20can%20also%20rotate%20a,table%20only%20has%202%20dimensions.
+OTU_final
+## In case you have to delete a column:
+# OTU.clean = OTU[,-which(names(OTU) %in% c("label", "numOtus", "Group"))] # to remove the “label”, “numOTUs”, and “Group” columns as they are not OTU counts like the rest of the table
+```
+
+### 3.1.1. Ordination scatterplots
+
+```{r}
+# Bray-Curtis metric
+BC.nmds = metaMDS(OTU_final, distance="bray", k=2, trymax=20) # calculate the nMDS values
+# check the stress is lower than 0.2
+
+## Plot the nMDS
+par(mfrow = c(1, 1))
+### Create a blank plot for the NMDS
+plot(BC.nmds, type="n", main="Bray-Curtis")
+### Add the points colored by age
+points(BC.nmds, display="sites", pch=20, col=c("#008B8B", "#8A2BE2", "#D95F02")[metadata$group])
+### Add a legend
+legend(-0.7, 0.4, legend=c("CON","SCP","CP"), col=c("#008B8B", "#8A2BE2", "#D95F02"), pch=20)
+#### Save as "OTU_based_NMDS_BC_group.tiff"
+
+# Jaccard metric 
+## http://127.0.0.1:25357/graphics/plot_zoom_png?width=476&height=399
+J.nmds = metaMDS(OTU_final, distance="jaccard", k=2, trymax=1000)
+
+plot(J.nmds, type="n", main="Jaccard")
+points(BC.nmds, display="sites", pch=20, col=c("#008B8B", "#8A2BE2", "#D95F02")[metadata$group])
+legend(-0.7, 0.4, legend=c("CON","SCP","CP"), col=c("#008B8B", "#8A2BE2", "#D95F02"), pch=20)
+#### Save as "OTU_based_NMDS_J_group.tiff"
+
+# 3D plots
+## Calculate the Bray-Curtis nMDS for 3-axis
+BC.nmds.3D = metaMDS(OTU_final, distance="bray", k=3, trymax=1000)
+
+### Extract x-y-z values for this nMDS
+BCxyz = scores(BC.nmds.3D, display="sites")
+#### This is a table that looks like 
+BCxyz
+
+group_factor <- factor(metadata$group, levels = c("CON", "SCP", "CP"))
+plot_ly(x=BCxyz[,1], y=BCxyz[,2], z=BCxyz[,3], type="scatter3d", mode="markers", color=group_factor, colors=c("#008B8B", "#8A2BE2", "#D95F02"))
+##### Save as "3D_OTU_based_NMDS_BC_group.png"
+
+J.nmds.3D = metaMDS(OTU_final, distance="jaccard", k=3, trymax=1000)
+Jxyz = scores(J.nmds.3D, display="sites")
+Jxyz
+plot_ly(x=Jxyz[,1], y=Jxyz[,2], z=Jxyz[,3], type="scatter3d", mode="markers", color=group_factor, colors=c("#008B8B", "#8A2BE2", "#D95F02"))
+##### Save as "3D_OTU_based_NMDS_J_group.png"
+
+## To create two separate 2D plots to show the 3D data
+par(mfrow=c(1,2))
+### Axis 1 and 2 (x and y)
+plot(BCxyz[,1], BCxyz[,2], main="Bray-Curtis 1:2", pch=20, col=c("#008B8B", "#8A2BE2", "#D95F02")[metadata$group])
+legend(-0.6, 0.4, legend=c("CON","SCP","CP"), col=c("#008B8B", "#8A2BE2", "#D95F02"), pch=20)
+### Axis 1 and 3 (x and z)
+plot(BCxyz[,1], BCxyz[,3], main="Bray-Curtis 1:3", pch=20, col=c("#008B8B", "#8A2BE2", "#D95F02")[metadata$group])
+#### Save as "3Din2D_OTU_based_NMDS_BC_group.tiff"
+
+plot(Jxyz[,1], Jxyz[,2], main="Jaccard 1:2", pch=20, col=c("#008B8B", "#8A2BE2", "#D95F02")[metadata$Group])
+legend(-0.6, 0.4, legend=c("CON","SCP","CP"), col=c("#008B8B", "#8A2BE2", "#D95F02"), pch=20)
+plot(Jxyz[,1], Jxyz[,3], main="Jaccard 1:3", pch=20, col=c("#008B8B", "#8A2BE2", "#D95F02")[metadata$group])
+#### Save as "3Din2D_OTU_based_NMDS_J_group.tiff"
+```
+
+## 3.2. Phylogenetic-based metrics
+
+### 3.2.1. Ordination scatterplots
+
+```{r}
+## Weighted unifrac
+wUF.ordu = ordinate(physeq_OF, method="NMDS", distance="unifrac", weighted=TRUE)
+
+plot_ordination(physeq_OF, wUF.ordu, type="sites", color= "group") + 
+  scale_colour_manual(values=c("CON"="#008B8B", "SCP"="#8A2BE2","CP"="#D95F02")) + 
+  theme_bw() + 
+  stat_ellipse() +
+  ggtitle("Weighted UniFrac")
+ggsave("3_Beta_diversity/Phylo_based_wUF_NMDS_group.tiff", height = 7, width = 8, dpi = 300, device = "tiff")
+
+## Unweighted unifrac
+uwUF.ordu = ordinate(physeq_OF, method="NMDS", distance="unifrac", weighted=FALSE)
+
+plot_ordination(physeq_OF, uwUF.ordu, type="sites", color="group") + 
+  scale_colour_manual(values=c("CON"="#008B8B", "SCP"="#8A2BE2","CP"="#D95F02")) + 
+  stat_ellipse() +
+  theme_bw() + 
+  ggtitle("Unweighted UniFrac")
+ggsave("3_Beta_diversity/Phylo_based_uwUF_NMDS_group.tiff", height = 7, width = 8, dpi = 300, device = "tiff")
+```
+
+## 3.3. Statistically test beta-diversity
+
+### 3.3.1. PERMANOVA (permutational analysis of variance)
+
+```{r}
+# Ordination scatterplots
+## Calculate distance and save as a matrix
+BC.dist=vegdist(OTU_final, distance="bray")
+## Run PERMANOVA on distances
+PERMANOVA_BC = adonis2(BC.dist ~ group, data = metadata, permutations = 1000)
+PERMANOVA_BC
+capture.output(PERMANOVA_BC, file = "3_Beta_diversity/PERMANOVA_BC.txt")
+
+J.dist= vegdist(OTU_final, distance="jaccard")
+PERMANOVA_J = adonis2(J.dist ~ group, data = metadata, permutations = 1000)
+PERMANOVA_J
+capture.output(PERMANOVA_J, file = "3_Beta_diversity/PERMANOVA_J.txt")
+
+
+wUF.dist = UniFrac(physeq_OF, weighted=TRUE, normalized=TRUE)
+PERMANOVA_wUF = adonis2(wUF.dist ~ group, data=metadata, permutations = 1000)
+PERMANOVA_wUF
+capture.output(PERMANOVA_wUF, file = "3_Beta_diversity/PERMANOVA_wUF.txt")
+
+uwUF.dist = UniFrac(physeq_OF, weighted=FALSE, normalized=TRUE)
+PERMANOVA_uwUF = adonis2(uwUF.dist ~ group, data=metadata, permutations = 1000)
+PERMANOVA_uwUF
+capture.output(PERMANOVA_uwUF, file = "3_Beta_diversity/PERMANOVA_uwUF.txt")
+```
+
+### 3.3.2. ANOSIM (Analysis of similarities)
+
+```{r}
+ANOSIM_BC_Group = anosim(BC.dist, metadata$group, permutations = 1000)
+ANOSIM_BC_Group
+capture.output(ANOSIM_BC_Group, file = "3_Beta_diversity/ANOSIM_BC_Group.txt")
+
+ANOSIM_J_Group = anosim(J.dist, metadata$group, permutations = 1000)
+ANOSIM_J_Group
+capture.output(ANOSIM_J_Group, file = "3_Beta_diversity/ANOSIM_J_Group.txt")
+
+
+ANOSIM_wUF_Group = anosim(wUF.dist, metadata$group, permutations = 1000)
+ANOSIM_wUF_Group
+capture.output(ANOSIM_wUF_Group, file = "3_Beta_diversity/ANOSIM_wUF_Group.txt")
+
+ANOSIM_uwUF_Group = anosim(uwUF.dist, metadata$group, permutations = 1000)
+ANOSIM_uwUF_Group
+capture.output(ANOSIM_uwUF_Group, file = "3_Beta_diversity/ANOSIM_uwUF_Group.txt")
+```
+
+### 3.3.3. Beta dispersion
+
+```{r}
+disp.BC.group = betadisper(BC.dist, metadata$group)
+test.disp.BC.group = permutest(disp.BC.group, pairwise=TRUE, permutations=1000)
+capture.output(test.disp.BC.group, file = "3_Beta_diversity/Beta_dispersion_BC_Group.txt")
+
+disp.J.group = betadisper(J.dist, metadata$group)
+test.disp.J.group = permutest(disp.J.group, pairwise=TRUE, permutations=1000)
+capture.output(test.disp.J.group, file = "3_Beta_diversity/Beta_dispersion_J_Group.txt")
+
+
+disp.wUF.group = betadisper(wUF.dist, metadata$group)
+test.disp.wUF.group = permutest(disp.wUF.group, pairwise=TRUE, permutations=1000)
+capture.output(test.disp.wUF.group, file = "3_Beta_diversity/Beta_dispersion_wUF_Group(Y).txt")
+
+disp.uwUF.group = betadisper(uwUF.dist, metadata$group)
+test.disp.uwUF.group = permutest(disp.uwUF.group, pairwise=TRUE, permutations=1000)
+capture.output(test.disp.uwUF.group, file = "3_Beta_diversity/Beta_dispersion_uwUF_Group.txt")
+```
+
+### 3.3.4. Calculation with Euclidean method and Bonferroni correction
+
+```{r}
+pairwise.adonis_BC_Euc_Bonf_group <- pairwise.adonis(BC.dist, metadata$group, sim.method = "euclidean", p.adjust.m = "bonferroni")
+pairwise.adonis_BC_Euc_Bonf_group
+# capture.output(pairwise_adonis_BC_Euc_Bonf_group, file = "3_Beta_diversity/(n)pairwise_Group_BC_euclidean_bonferroni.txt")
+
+pairwise.adonis_J_Euc_Bonf_group <- pairwise.adonis(J.dist, metadata$group, sim.method = "euclidean",
+                                                       p.adjust.m = "bonferroni")
+pairwise.adonis_J_Euc_Bonf_group
+# capture.output(pairwise.adonis_J_Euc_Bonf_group, file = "3_Beta_diversity/(n)pairwise_Group_J_euclidean_bonferroni.txt")
+
+
+pairwise.adonis_wUF_Euc_Bonf_group <-  pairwise.adonis(wUF.dist, metadata$group, sim.method = "euclidean",
+                                                    p.adjust.m = "bonferroni")
+pairwise.adonis_wUF_Euc_Bonf_group
+# capture.output(pairwise.adonis_wUF_Euc_Bonf_group, file = "3_Beta_diversity/(n)pairwise_Group_wUF_euclidean_bonferroni.txt")
+
+pairwise.adonis_uwUF_Euc_Bonf_group <- pairwise.adonis(uwUF.dist, metadata$group, sim.method = "euclidean",
+                                                       p.adjust.m = "bonferroni")
+pairwise.adonis_uwUF_Euc_Bonf_group
+# capture.output(pairwise.adonis_uwUF_Euc_Bonf_group, file = "3_Beta_diversity/(n)pairwise_Group_uwUF_euclidean_bonferroni.txt")
+```
+
+#### 3.3.5.1. With the best method, calculate without method or standard corrections
+
+```{r}
+pairwise.adonis_uwUF_group <- pairwise.adonis(uwUF.dist, metadata$group)
+pairwise.adonis_uwUF_group
+# capture.output(pairwise.adonis_uwUF_group, file = "3_Beta_diversity/pairwise_uwUF_Group_default.txt")
+
+# Calculate without method and with Bonferroni correction
+pairwise.adonis_uwUF_Bonf_group <- pairwise.adonis(uwUF.dist, metadata$group,
+                                                      p.adjust.m = "bonferroni")
+pairwise.adonis_uwUF_Bonf_group
+# capture.output(pairwise.adonis_uwUF_Bonf_group, file = "3_Beta_diversity/pairwise_uwUF_Group_bonferroni.txt")
+
+# Calculate with BC method and Bonferroni correction
+pairwise.adonis_uwUF_BC_Bonf_group <- pairwise.adonis(uwUF.dist, metadata$group, sim.method = "bray",
+                                                      p.adjust.m = "bonferroni")
+pairwise.adonis_uwUF_BC_Bonf_group
+# capture.output(pairwise.adonis_uwUF_BC_Bonf_group, file = "3_Beta_diversity/pairwise_uwUF_Group_bray_bonferroni.txt")
+```
+
+## 3.4. Constrained Ordinations
+
+```{r}
+# Remove data points with missing metadata
+erie_not_na <- physeq_OF %>%
+  subset_samples(
+    !is.na(group) 
+  )
+
+bray_not_na <- phyloseq::distance(physeq = erie_not_na, method = "unifrac")
+
+# CAP ordinate
+# An alternative (more PERMANOVA-like) would be to use a canonical analysis of principal coordinates (CAP) to find axes that best 
+# discriminate among groups of interest (like a distance-based discriminant analysis) and then overlay Spearman rank correlation 
+# vectors of species abundances with the 2 canonical axes. This is also a nice way of graphically looking at patterns.
+
+cap_ord <- ordinate(
+  physeq = erie_not_na, 
+  method = "CAP",
+  distance = bray_not_na,
+  formula = ~ group
+)
+
+# CAP plot
+cap_plot <- plot_ordination(
+  physeq = erie_not_na, 
+  ordination = cap_ord, 
+  color = "group", 
+  axes = c(1,2)
+) + 
+  aes(shape = group) +
+  geom_point(aes(colour = group), alpha = 0.7, size = 8) + 
+  geom_point(colour = "grey90", size = 1.5) + 
+  scale_color_manual(values = c("#008B8B", "#8A2BE2", "#D95F02")) + theme_bw() +
+  theme(
+    axis.title = element_text(size = 20, face = "bold"),
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 20, face = "bold")
+  ) +
+  labs(
+    x = paste0("CAP1 [", round(cap_ord$CCA$eig[1]/sum(cap_ord$CCA$eig)*100, 1), "%]"),
+    y = paste0("CAP2 [", round(cap_ord$CCA$eig[2]/sum(cap_ord$CCA$eig)*100, 1), "%]")
+  )
+cap_plot
+
+# Now add the environmental variables as arrows
+arrowmat <- vegan::scores(cap_ord, display = "bp")
+
+# Add labels, make a data.frame
+arrowdf <- data.frame(labels = rownames(arrowmat), arrowmat)
+
+# Define the arrow aesthetic mapping
+arrow_map <- aes(xend = CAP1, 
+                 yend = CAP2, 
+                 x = 0, 
+                 y = 0, 
+                 shape = NULL, 
+                 color = NULL, 
+                 label = labels)
+
+label_map <- aes(x = 1.4 * CAP1, 
+                 y = 1.4 * CAP2, 
+                 shape = NULL, 
+                 color = NULL, 
+                 label = labels)
+
+arrowhead = arrow(length = unit(0.02, "npc"))
+
+# Make a new graphic
+cap2_bray <- cap_plot +
+  geom_segment(
+    mapping = arrow_map, 
+    size = .7, 
+    data = arrowdf, 
+    color = "gray", 
+    arrow = arrowhead
+  ) + 
+  geom_text(
+    mapping = label_map, 
+    size = 7,  
+    data = arrowdf, 
+    show.legend = FALSE
+  )
+cap2_bray
+ggsave(file="3_Beta_diversity/beta_diversity_cap_uwUF.svg", plot=cap2_bray, width=15, height=12, dpi = 300, limitsize =FALSE)
+```
+
+## 3.5. Additional 2D plot beta diversity
+
+```{r}
+plotbeta(physeq_OF, group="group", distance = "bray", method = "PCoA", ellipse = TRUE) + 
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP"))
+ggsave("3_Beta_diversity/plot_beta_Bray_PCoA-group.tiff", height = 9, width = 10, device = "tiff")
+
+ordination = ordinate(physeq_OF, "DPCoA", "bray")
+plot_ordination(physeq_OF, ordination, "group", color ="group") + 
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP"))
+ggsave("3_Beta_diversity/plot_beta_ordination_DPCoA_bray_group.tiff", height = 5, width = 5, device = "tiff")
+```
+
+# 4. Plotting a heatmap
+
+```{r}
+# Create the directory
+output_path_heatmap <- "4_Heatmap"
+dir.create(output_path_heatmap, showWarnings = FALSE, recursive = TRUE)
+
+phyloseq::plot_heatmap(physeq_OF, 
+                       method = "NMDS", 
+                       distance = "bray", 
+                       sample.label = NULL, 
+                       taxa.label = "Genus",     
+                       low = "white", 
+                       high = "red", 
+                       na.value = "grey")
+ggsave("4_Heatmap/plot_beta_ordination_DPCoA_bray_groups.tiff", height = 5, width = 7, device = "tiff")
+```
+
+## 4.1. OTUs that represent at least 5% of reads in at least one sample
+
+```{r}
+total = median(sample_sums(physeq_OF))
+physeq_abund <- phyloseq::filter_taxa(physeq_OF, function(x) sum (x > total*0.05) > 0, TRUE)
+physeq_abund
+
+otu_table(physeq_abund)
+
+phyloseq::plot_heatmap(physeq_abund, 
+                       sample.label = "group", 
+                       sample.order = "group", 
+                       method = "NMDS", 
+                       distance = "bray",
+                       taxa.label = "Genus", 
+                       taxa.order = "Genus",
+                       trans = NULL, 
+                       low = "beige", 
+                       high = "red", 
+                       na.value = "beige")
+ggsave(file="4_Heatmap/plot_heatmap_genus_group.tiff", width=12, height=9, dpi = 300, limitsize =FALSE)
+```
+
+## 4.2. Plotting a heatmap (Option B)
+
+```{r}
+# 1. Load data
+metadata <- read_q2metadata("metadata.tsv")
+SVs_matrix <- physeq_OF@otu_table@.Data
+
+# 2. Extract and Deep Clean Full Taxonomy
+taxonomy_raw <- read_qza("taxa.qza")$data
+taxonomy_df <- as.data.frame(taxonomy_raw)
+
+# Clean the strings but keep the full path up to Genus
+taxonomy_df$Full_Genus_Path <- sapply(strsplit(as.character(taxonomy_df$Taxon), ";"), function(x) {
+  # We take up to 6 levels (Kingdom to Genus) and paste them back together
+  path <- paste(x[1:min(length(x), 6)], collapse = ";")
+  # Remove any double quotes to keep the labels clean
+  gsub('"', '', path)
+})
+
+# 3. Manual Aggregation
+combined_data <- merge(as.data.frame(SVs_matrix), 
+                       taxonomy_df[, c("Feature.ID", "Full_Genus_Path")], 
+                       by.x = "row.names", by.y = "Feature.ID")
+
+taxasums <- combined_data %>%
+  group_by(Full_Genus_Path) %>%
+  summarise(across(where(is.numeric), sum)) %>%
+  # We use the full path as the row name for the heatmap labels
+  column_to_rownames("Full_Genus_Path")
+
+# 4. Generate and save Heatmap
+taxa_heatmap(taxasums, metadata, "group", ntoplot = 30)
+
+# Save with a slightly wider width to accommodate the longer names
+ggsave("4_Heatmap/heatmap_group_full_path.tiff", 
+       height = 8, width = 14, dpi = 300, device = "tiff")
+```
+
+# 5. Taxonomic barplots
+
+## 5.1. Absolute Abundance I
+
+```{r}
+# Create the directory
+output_path_taxonomic_absolute <- "5_Taxonomic_barplot/Absolute_abundance"
+dir.create(output_path_taxonomic_absolute, showWarnings = FALSE, recursive = TRUE)
+
+taxa_barplot(taxasums,metadata,"group", normalize = "none")
+ggsave("5_Taxonomic_barplot/Absolute_abundance/abundance_barplot_group.svg", height = 4, width = 10, device = "svg") # save a PNG 4 inches by 8 inches
+
+write.csv(taxasums, "5_Taxonomic_barplot/Taxasums_genus.csv")
+write.csv(taxasums, "5_Taxonomic_barplot/Taxasums_phylum.csv")
+
+## Generate and load the function process_taxonomy_groups
+source("process_taxonomy_groups.R") 
+process_taxonomy_groups(
+  taxonomy_input = "5_Taxonomic_barplot/Taxasums_phylum.csv", 
+  metadata_input = "Samples.xlsx",
+  output_xlsx = "5_Taxonomic_barplot/Taxasums_groups_phylum.xlsx",
+)
+
+process_taxonomy_groups(
+  taxonomy_input = "5_Taxonomic_barplot/Taxasums_genus.csv", 
+  metadata_input = "Samples.xlsx",
+  output_xlsx = "5_Taxonomic_barplot/Taxasums_groups_genus.xlsx",
+)
+
+taxasums3 <- read_excel('5_Taxonomic_barplot/Taxasums_groups_genus.xlsx')
+taxasums_genus <- taxasums3 %>%
+  tibble::column_to_rownames("Taxa")
+
+taxasums4 <- read_excel('5_Taxonomic_barplot/Taxasums_groups_phylum.xlsx')
+taxasums_phylum <- taxasums4 %>%
+  tibble::column_to_rownames("Taxa")
+
+MyPalette3 <- c("dodgerblue3","green4","red1","mediumpurple1","yellow2",
+                             "blueviolet", "chartreuse3", "cadetblue2","chocolate1", 
+                             "burlywood2", "red3" ,"blue3", "brown3", "cadetblue4", 
+                             "bisque3","coral", "aquamarine3", "brown","deeppink3", 
+                             "gold3","darkturquoise","darkslateblue", 
+                             "darksalmon", "forestgreen", "pink2", "aliceblue",
+                             "wheat3", "plum", "olivedrab1", "grey81",
+                             "orangered", "turquoise1", "magenta2", "red",
+                             "coral3","springgreen1", "orchid1","yellowgreen",
+                             "darkgoldenrod1","chocolate4", "royalblue1","tan4",
+                             "darkorange","darkkhaki","pink","firebrick1","seagreen1",
+                             "peru","lightgoldenrod1")
+
+MyPalette4 <- c(
+  "#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E", "#E6AB02", "#A6761D", "#666666",
+  "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+  "#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#E31A1C", "#FDBF6F", "#FF7F00",
+  "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3",
+  "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999", "#624464", "#5A7247", "#D99559",
+  "#46344E", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#000000",
+  "#86BBD8", "#F6AE2D"
+)
+
+absolute_genus_35 = taxa_barplot(taxasums_genus, normalize = "none", ntoplot = 35)
+absolute_genus_35_figure = absolute_genus_35 + scale_fill_manual(values = MyPalette4) 
+absolute_genus_35_figure
+ggsave("5_Taxonomic_barplot/Absolute_abundance/absolute_35genus_breed.tiff", height = 7, width = 14, device = "tiff")
+
+absolute_phylum_10 = taxa_barplot(taxasums_phylum, normalize = "none", ntoplot = 10)
+absolute_genus_10_figure = absolute_phylum_10 + scale_fill_manual(values = MyPalette4) 
+absolute_genus_10_figure
+ggsave("5_Taxonomic_barplot/Absolute_abundance/absolute_10phylum_breed.tiff", height = 5, width = 4, device = "tiff")
+
+absolute_genus_45 = taxa_barplot(taxasums, normalize = "none", ntoplot = 45)
+absolute_genus_45_figure = absolute_genus_45 + scale_fill_manual(values = MyPalette4) 
+absolute_genus_45_figure
+ggsave("5_Taxonomic_barplot/Absolute_abundance/absolute_45genus_sample.tiff", height = 7, width = 22, device = "tiff")
+```
+
+## 5.2. Absoulte Abundance II
+
+```{r}
+# Process prune.dat
+# https://github.com/joey711/phyloseq/issues/1197
+prune.dat <- prune_taxa(taxa_sums(physeq_OF) > 2, physeq_OF) # remove less than 2%
+
+dat.aglo = tax_glom(prune.dat, taxrank = "Genus")
+dat.dataframe = psmelt(dat.aglo)
+
+ggplot(dat.dataframe, aes(x=group, y=Abundance, fill=Genus)) + geom_bar(stat="identity", position = "stack")
+```
+
+### 5.2.1. Obtain only the Top 10 results
+
+```{r}
+top15 <- names(sort(taxa_sums(prune.dat), decreasing=TRUE)[1:34])
+top15 # shows 10 results
+
+prune.dat.two = prune_taxa(top15, dat.aglo)
+dat.dataframe15 = psmelt(prune.dat.two)
+
+ggplot(dat.dataframe15, aes(x=group, y=Abundance, fill=Genus)) + geom_bar(stat="identity", position = "stack")
+ggsave("5_Taxonomic_barplot/Absolute_abundance/absolute_barplot_genus_group.tiff", height = 6, width = 7, dpi = 300, device = "tiff")
+
+
+top340 <- names(sort(taxa_sums(prune.dat), decreasing=TRUE)[1:240])
+dat.aglo2 = tax_glom(prune.dat, taxrank = "Phylum")
+prune.dat.three = prune_taxa(top340, dat.aglo2)
+dat.dataframe2 = psmelt(prune.dat.three)
+ggplot(dat.dataframe2, aes(x=group, y=Abundance, fill=Phylum)) + geom_bar(stat="identity", position = "stack")
+ggsave("5_Taxonomic_barplot/Absolute_abundance/absolute_barplot_phylum_group.tiff", height = 6, width = 7, dpi = 300, device = "tiff")
+```
+
+## 5.2. Relative Abundance I
+
+```{r}
+# https://forum.qiime2.org/t/mismatch-between-qiime2-taxa-bar-plot-and-phyloseq-taxa-bar-plot/17772/2
+
+# Create the directory
+output_path_taxonomic_relative <- "5_Taxonomic_barplot/Relative_abundance"
+dir.create(output_path_taxonomic_relative, showWarnings = FALSE, recursive = TRUE)
+
+# Default normalize method is relative
+plotbar(physeq_OF,level="Phylum", top = 30, return = FALSE, fontsize.x = 10, fontsize.y = 10)
+ggsave("5_Taxonomic_barplot/Relative_abundance/plot_bar-phylum-all.tiff", height = 9, width = 10, device = "tiff")
+
+plotbar(physeq_OF,level="Phylum", top = 10, group = "group", return = FALSE, fontsize.x = 10, fontsize.y = 10)
+ggsave("5_Taxonomic_barplot/Relative_abundance/plot_bar-phylum-breed_10.tiff", height = 8, width = 7, device = "tiff")
+
+plotbar(physeq_OF,level="Genus", top = 10, fontsize.x = 10, fontsize.y = 10)
+ggsave("5_Taxonomic_barplot/Relative_abundance/plot_bar-genus-all.tiff", height = 9, width = 10, device = "tiff")
+
+plotbar(physeq_OF,level="Genus", top = 45, fontsize.x = 10, fontsize.y = 10)
+ggsave("5_Taxonomic_barplot/Relative_abundance/plot_bar-genus-all_45.tiff", height = 9, width = 14, device = "tiff")
+
+plotbar(physeq_OF,level="Genus", group = "group", top = 35, fontsize.x = 10, fontsize.y = 10)
+ggsave("5_Taxonomic_barplot/Relative_abundance/plot_bar-genus-breed_35.tiff", height = 9, width = 14, device = "tiff")
+```
+
+### 5.2.1. Phylum-level Sample Barplot with "Other"
+```{r}
+# 1. Filter low-count features (e.g., > 2 total reads across dataset)
+prune.dat <- phyloseq::prune_taxa(phyloseq::taxa_sums(physeq_OF) > 2, physeq_OF)
+
+# 2. Agglomerate at the Phylum level across the entire community
+dat.aglo.phylum <- phyloseq::tax_glom(prune.dat, taxrank = "Phylum", NArm = FALSE)
+
+# 3. Transform to true relative proportions (each sample sums exactly to 1.0 / 100%)
+dat.rel.phylum <- phyloseq::transform_sample_counts(dat.aglo.phylum, function(x) x / sum(x))
+df_s4 <- phyloseq::psmelt(dat.rel.phylum)
+
+# 4. Clean taxonomic labels and handle missing values
+df_s4$Phylum <- as.character(df_s4$Phylum)
+df_s4$Phylum[is.na(df_s4$Phylum) | df_s4$Phylum == ""] <- "Unclassified"
+
+# 5. Identify the top 10 most abundant phyla across all samples
+top10_phyla <- df_s4 %>%
+  dplyr::group_by(Phylum) %>%
+  dplyr::summarise(mean_abund = mean(Abundance), .groups = "drop") %>%
+  dplyr::arrange(desc(mean_abund)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::pull(Phylum)
+
+# 6. Reassign remaining phyla to the "Other" category
+df_s4 <- df_s4 %>%
+  dplyr::mutate(Phylum_Display = ifelse(Phylum %in% top10_phyla, Phylum, "Other"))
+
+# Set legend order: Top 10 phyla followed by "Other"
+phylum_order <- c(setdiff(top10_phyla, "Other"), "Other")
+df_s4$Phylum_Display <- factor(df_s4$Phylum_Display, levels = phylum_order)
+
+# Set facet group order
+df_s4$group <- factor(df_s4$group, levels = c("CON", "SCP", "CP"))
+
+# 7. Generate individual sample stacked bar chart
+p_s4 <- ggplot(df_s4, aes(x = Sample, y = Abundance, fill = Phylum_Display)) +
+  geom_bar(stat = "identity", width = 0.85) +
+  facet_grid(~group, scales = "free_x", space = "free_x") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0), limits = c(0, 1.005)) +
+  labs(x = "Sample", y = "Relative Abundance", fill = "Phylum") +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 12),
+    legend.title = element_text(face = "bold", size = 11),
+    legend.text = element_text(size = 10)
+  )
+
+print(p_s4)
+
+# 8. Save figure
+dir.create("5_Taxonomic_barplot/Relative_abundance", recursive = TRUE, showWarnings = FALSE)
+ggsave(
+  filename = "5_Taxonomic_barplot/Relative_abundance/plot_bar-phylum-all.tiff",
+  plot = p_s4,
+  height = 9,
+  width = 10,
+  dpi = 400,
+  device = "tiff"
+)
+```
+
+### 5.2.2. Genus-level Sample Barplot with "Other"
+```{r}
+# 1. Filter low-count features (e.g., > 2 total reads across dataset)
+prune.dat <- phyloseq::prune_taxa(phyloseq::taxa_sums(physeq_OF) > 2, physeq_OF)
+
+# 2. Agglomerate at the Genus level across the entire community
+dat.aglo.genus <- phyloseq::tax_glom(prune.dat, taxrank = "Genus", NArm = FALSE)
+
+# 3. Transform to true relative proportions (each sample sums exactly to 1.0 / 100%)
+dat.rel.genus <- phyloseq::transform_sample_counts(dat.aglo.genus, function(x) x / sum(x))
+df_s5 <- phyloseq::psmelt(dat.rel.genus)
+
+# 4. Clean taxonomic labels and handle unclassified lineages
+df_s5$Genus <- as.character(df_s5$Genus)
+df_s5$Genus[is.na(df_s5$Genus) | df_s5$Genus == ""] <- "Incertae_Sedis"
+
+# 5. Identify the top 10 most abundant genera across all samples
+top10_genera <- df_s5 %>%
+  dplyr::group_by(Genus) %>%
+  dplyr::summarise(mean_abund = mean(Abundance), .groups = "drop") %>%
+  dplyr::arrange(desc(mean_abund)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::pull(Genus)
+
+# 6. Reassign remaining genera to the "Other" category
+df_s5 <- df_s5 %>%
+  dplyr::mutate(Genus_Display = ifelse(Genus %in% top10_genera, Genus, "Other"))
+
+# Set legend order: Top 10 genera followed by "Other"
+genus_order <- c(setdiff(top10_genera, "Other"), "Other")
+df_s5$Genus_Display <- factor(df_s5$Genus_Display, levels = genus_order)
+
+# Set facet group order
+df_s5$group <- factor(df_s5$group, levels = c("CON", "SCP", "CP"))
+
+# 7. Generate individual sample stacked bar chart
+p_s5 <- ggplot(df_s5, aes(x = Sample, y = Abundance, fill = Genus_Display)) +
+  geom_bar(stat = "identity", width = 0.85) +
+  facet_grid(~group, scales = "free_x", space = "free_x") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0), limits = c(0, 1.005)) +
+  labs(x = "Sample", y = "Relative Abundance", fill = "Genus") +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10, color = "black"),
+    axis.text.y = element_text(size = 10, color = "black"),
+    axis.title = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 12),
+    legend.title = element_text(face = "bold", size = 11),
+    legend.text = element_text(size = 10)
+  )
+
+print(p_s5)
+
+# 8. Save figure
+dir.create("5_Taxonomic_barplot/Relative_abundance", recursive = TRUE, showWarnings = FALSE)
+ggsave(
+  filename = "5_Taxonomic_barplot/Relative_abundance/plot_bar-genus-all.tiff",
+  plot = p_s5,
+  height = 9,
+  width = 10,
+  dpi = 400,
+  device = "tiff"
+)
+```
+
+## 5.3. Relative Abundance II
+```{r}
+# https://github.com/joey711/phyloseq/issues/1197
+# 1. Filter low-count features across the dataset (e.g., > 2 total reads)
+prune.dat <- prune_taxa(taxa_sums(physeq_OF) > 2, physeq_OF) 
+
+# 2. Agglomerate at the Genus level across the complete community
+dat.aglo = tax_glom(prune.dat, taxrank = "Genus", NArm = FALSE)
+
+# 3. Transform to true relative proportions (each sample sums exactly to 1.0 / 100%)
+dat.rel <- phyloseq::transform_sample_counts(dat.aglo, function(x) x / sum(x))
+
+# 4. Melt phyloseq object to a tidy data frame
+dat.dataframe <- phyloseq::psmelt(dat.rel)
+
+# 5. Handle unclassified/missing taxonomic assignments
+dat.dataframe$Genus <- as.character(dat.dataframe$Genus)
+dat.dataframe$Genus[is.na(dat.dataframe$Genus) | dat.dataframe$Genus == ""] <- "Incertae_Sedis"
+```
+
+### 5.3.1. Obtain only the Top 10 results
+
+```{r}
+# 6. Identify the top 10 most abundant genera across all samples
+top10_genera <- dat.dataframe %>%
+  dplyr::group_by(Genus) %>%
+  dplyr::summarise(mean_abund = mean(Abundance), .groups = "drop") %>%
+  dplyr::arrange(desc(mean_abund)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::pull(Genus)
+
+# 7. Reassign all remaining genera to the "Other" category
+dat.dataframe <- dat.dataframe %>%
+  dplyr::mutate(
+    Genus_Display = ifelse(Genus %in% top10_genera, Genus, "Other")
+  )
+
+# 8. Set factor levels to place the top genera in order and "Other" at the end
+genus_order <- c(setdiff(top10_genera, "Other"), "Other")
+dat.dataframe$Genus_Display <- factor(dat.dataframe$Genus_Display, levels = genus_order)
+
+# 9. Compute group-mean relative abundances
+df_group_summary <- dat.dataframe %>%
+  dplyr::group_by(group, Genus_Display) %>%
+  dplyr::summarise(Mean_Abundance = sum(Abundance) / length(unique(Sample)), .groups = "drop")
+
+# 10. Generate stacked bar chart representing 100% of the microbial community
+p_genus_group <- ggplot(df_group_summary, aes(x = group, y = Mean_Abundance, fill = Genus_Display)) +
+  geom_bar(stat = "identity", width = 0.65) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0), limits = c(0, 1.005)) +
+  labs(x = "Experimental Group", y = "Relative Abundance", fill = "Genus") +
+  theme_classic() +
+  theme(
+    axis.text = element_text(color = "black", size = 11),
+    axis.title = element_text(face = "bold", size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(face = "bold", size = 11)
+  )
+
+print(p_genus_group)
+
+# 11. Save publication-quality figure
+dir.create("5_Taxonomic_barplot/Relative_abundance", recursive = TRUE, showWarnings = FALSE)
+ggsave(
+  filename = "5_Taxonomic_barplot/Relative_abundance/relative_barplot_genus_group_with_other.tiff",
+  plot = p_genus_group,
+  height = 6,
+  width = 7.5,
+  dpi = 400,
+  device = "tiff"
+)
+
+
+top125 <- names(sort(taxa_sums(prune.dat), decreasing=TRUE)[1:34])
+prune.dat.two2 = prune_taxa(top125, dat.aglo)
+dat.dataframe125 = psmelt(prune.dat.two2)
+ggplot(dat.dataframe125, aes(x=group, y=Abundance, fill=Genus)) + geom_bar(stat="identity", position = "fill")
+ggsave("5_Taxonomic_barplot/Relative_abundance/relative_barplot_genus_group_35.tiff", height = 6, width = 10, dpi = 400, device = "tiff")
+
+# Phylum-Level Stacked Barplot (Top 10 Phyla + "Other")
+
+# 1. Filter low-count features across the dataset (e.g., > 2 total reads)
+prune.dat <- phyloseq::prune_taxa(phyloseq::taxa_sums(physeq_OF) > 2, physeq_OF)
+# 2. Agglomerate at the Phylum level across the complete community
+dat.aglo.phylum <- phyloseq::tax_glom(prune.dat, taxrank = "Phylum", NArm = FALSE)
+# 3. Transform to true relative proportions (each sample sums to 1.0 / 100%)
+dat.rel.phylum <- phyloseq::transform_sample_counts(dat.aglo.phylum, function(x) x / sum(x))
+# 4. Melt phyloseq object to a tidy data frame
+df_phylum <- phyloseq::psmelt(dat.rel.phylum)
+# 5. Handle unclassified/missing taxonomic assignments
+df_phylum$Phylum <- as.character(df_phylum$Phylum)
+df_phylum$Phylum[is.na(df_phylum$Phylum) | df_phylum$Phylum == ""] <- "Unclassified"
+# 6. Identify the top 10 most abundant phyla across all samples
+top10_phyla <- df_phylum %>%
+  dplyr::group_by(Phylum) %>%
+  dplyr::summarise(mean_abund = mean(Abundance), .groups = "drop") %>%
+  dplyr::arrange(desc(mean_abund)) %>%
+  dplyr::slice_head(n = 10) %>%
+  dplyr::pull(Phylum)
+# 7. Reassign all remaining phyla to the "Other" category
+df_phylum <- df_phylum %>%
+  dplyr::mutate(
+    Phylum_Display = ifelse(Phylum %in% top10_phyla, Phylum, "Other")
+  )
+# 8. Set factor levels to place top 10 phyla in order and "Other" at the end
+phylum_order <- c(setdiff(top10_phyla, "Other"), "Other")
+df_phylum$Phylum_Display <- factor(df_phylum$Phylum_Display, levels = phylum_order)
+# Enforce CON -> SCP -> CP factor ordering on the x-axis
+df_phylum$group <- factor(df_phylum$group, levels = c("CON", "SCP", "CP"))
+# 9. Compute group-mean relative abundances
+df_phylum_summary <- df_phylum %>%
+  dplyr::group_by(group, Phylum_Display) %>%
+  dplyr::summarise(Mean_Abundance = sum(Abundance) / length(unique(Sample)), .groups = "drop")
+# 10. Generate stacked bar chart representing 100% of the microbial community
+p_phylum_group <- ggplot(df_phylum_summary, aes(x = group, y = Mean_Abundance, fill = Phylum_Display)) +
+  geom_bar(stat = "identity", width = 0.65) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0), limits = c(0, 1.005)) +
+  labs(x = "group", y = "Relative Abundance", fill = "Phylum") +
+  theme_classic() +
+  theme(
+    axis.text = element_text(color = "black", size = 11),
+    axis.title = element_text(face = "bold", size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(face = "bold", size = 11)
+  )
+
+print(p_phylum_group)
+# 11. Save publication-quality figure
+dir.create("5_Taxonomic_barplot/Relative_abundance", recursive = TRUE, showWarnings = FALSE)
+ggsave(
+  filename = "5_Taxonomic_barplot/Relative_abundance/relative_barplot_phylum_group.tiff",
+  plot = p_phylum_group,
+  height = 6,
+  width = 7.5,
+  dpi = 400,
+  device = "tiff"
+)
+```
+
+## 5.4. Relative Abundance III
+
+```{r}
+taxa_barplot(taxasums,metadata,"group")
+ggsave("5_Taxonomic_barplot/Relative_abundance/relative_abundance_barplot_group.svg", height = 4, width = 10, device = "svg") # save a PNG 4 inches by 8 inches
+
+relative_genus_35 = taxa_barplot(taxasums_genus, ntoplot = 35)
+relative_genus_35_figure = relative_genus_35 + scale_fill_manual(values = MyPalette4) 
+relative_genus_35_figure
+ggsave("5_Taxonomic_barplot/Relative_abundance/relative_35genus_breed.tiff", height = 7, width = 14, device = "tiff")
+
+relative_phylum_10 = taxa_barplot(taxasums_phylum, ntoplot = 10)
+relative_genus_10_figure = relative_phylum_10 + scale_fill_manual(values = MyPalette4) 
+relative_genus_10_figure
+ggsave("5_Taxonomic_barplot/Relative_abundance/relative_10phylum_breed.tiff", height = 5, width = 4, device = "tiff")
+
+relative_genus_45 = taxa_barplot(taxasums, ntoplot = 45)
+relative_genus_45_figure = relative_genus_45 + scale_fill_manual(values = MyPalette4) 
+relative_genus_45_figure
+ggsave("5_Taxonomic_barplot/Relative_abundance/relative_45genus_sample.tiff", height = 7, width = 22, device = "tiff")
+```
+
+# 6. Plot tree from a specific taxa
+
+```{r}
+# Create the directory
+output_path_plot_tree <- "6_Plot_tree"
+dir.create(output_path_plot_tree, showWarnings = FALSE, recursive = TRUE)
+
+GP.chl <- subset_taxa(physeq_OF, Phylum=="Synergistota")
+plot_tree(GP.chl, nodelabf = nodeplotboot(lowcthresh = 50L), color="group", shape="Family", label.tips="Genus", size="abundance",text.size=3, sizebase =80, base.spacing = 0.01, ladderize = TRUE,  plot.margin=0.2) + 
+  scale_color_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP")) +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02"), breaks = c("CON", "SCP", "CP"))
+ggsave("6_Plot_tree/plot_tree_Synergistota.tiff", height = 15, width = 10, device = "tiff")
+```
+
+# 7. Network Analysis
+
+```{r}
+# Create the directory
+output_path_network_analysis <- "7_Network_Analysis"
+dir.create(output_path_network_analysis, showWarnings = FALSE, recursive = TRUE)
+
+plot_net(physeq_OF, distance = "(A+B-2*J)/(A+B)", type = "taxa",
+         maxdist = 0.7, color="Phylum", point_label="Class")
+
+# Take OTUs that represent at least 3% of reads in at least one sample
+total = median(sample_sums(physeq_OF))
+physeq_OF_abund_3 <- phyloseq::filter_taxa(physeq_OF, function(x) sum(x > total*0.03) > 0, TRUE)
+physeq_OF_abund_3
+
+plot_net(physeq_OF_abund_3, distance = "(A+B-2*J)/(A+B)", type = "taxa", 
+         maxdist = 0.8, color="Class", point_label="Genus") #Using only major OTUs
+ggsave("7_Network_Analysis/plot_net_maxdist08_3.tiff", height = 10, width = 12, device = "tiff")
+
+
+physeq_OF_abund_2 <- phyloseq::filter_taxa(physeq_OF, function(x) sum(x > total*0.02) > 0, TRUE)
+physeq_OF_abund_2
+
+plot_net(physeq_OF_abund_2, distance = "(A+B-2*J)/(A+B)", type = "taxa", 
+         maxdist = 0.8, color="Class", point_label="Genus") #Using only major OTUs
+ggsave("7_Network_Analysis/plot_net_maxdist08_2.tiff", height = 10, width = 12, device = "tiff")
+```
+
+# 8. LDA analysis with 'Microeco' package
+
+```{r}
+# https://chiliubio.github.io/microeco_tutorial/basic-class.html
+
+# Create the directory
+output_path_LDA <- "8_LDA"
+dir.create(output_path_LDA, showWarnings = FALSE, recursive = TRUE)
+
+# In R6 class, '$new' is the original method used to create a new object of class
+otu_mat_2 <- as.data.frame(physeq_OF@otu_table@.Data)
+tax_mat_2 <- as.data.frame(physeq_OF@tax_table@.Data)
+samples_df_2 <- metadata %>%
+  tibble::column_to_rownames("SampleID")
+dataset <- microtable$new(sample_table = samples_df_2, otu_table = otu_mat_2, tax_table = tax_mat_2, phylo_tree = tree_file)
+dataset
+
+# Use R subset function to filter taxa in tax_table
+dataset$filter_pollution(taxa = c("d__Archaea","d__Eukaryota"))
+dataset
+
+# Make the OTU and sample information consistent across all files in the dataset object
+dataset$tidy_dataset() # to trim the dataset
+print(dataset)
+
+# Check the sequence numbers in each sample
+dataset$sample_sums() %>% range
+
+# Calculate the taxa abundance at each taxonomic rank
+## It returns a list called taxa_abund stored in the microtable object
+dataset$cal_abund()
+class(dataset$taxa_abund)
+
+## Show part of the relative abundance at Phylum level
+dataset$taxa_abund$Phylum[1:5, 1:5]
+dataset$save_abund(dirpath = "8_LDA/taxa_abund")
+```
+
+## 8.1. Calculate alpha diversity
+
+```{r}
+# If you want to add Faith's phylogenetic diversity, use PD = TRUE, this will be a little slow
+dataset$cal_alphadiv(PD = FALSE)
+class(dataset$alpha_diversity)
+dataset$save_alphadiv(dirpath = "8_LDA/alpha_diversity")
+```
+
+## 8.2. Calculate beta diversity
+
+```{r}
+dataset$cal_betadiv(unifrac = TRUE)
+class(dataset$beta_diversity)
+dataset$save_betadiv(dirpath = "8_LDA/beta_diversity")
+```
+
+## 8.3. LDA for more than 2 variables
+
+```{r}
+t1 <- trans_diff$new(dataset = dataset, method = "lefse", group = "group", taxa_level = c("Kingdom","Phylum","Class","Order","Family","Genus")[6], alpha = 0.5, p_adjust_method = "none", lefse_subgroup = NULL)
+LDA_group = t1$res_diff
+LDA_group
+write.csv(LDA_group, file = "8_LDA/LDA_group_values.csv", row.names = FALSE)
+
+# Define custom color palette
+my_colors <- c("#008B8B", "#8A2BE2", "#D95F02")
+
+# From v0.8.0, threshold is used for the LDA score selection
+t1$plot_diff_bar(threshold = 4)
+## Show 20 taxa with the highest LDA (log10)
+t1$plot_diff_bar(use_number = 1:30, width = 0.8, group_order = c("CON", "SCP", "CP"), color_values = my_colors) 
+ggsave("8_LDA/lda_group_30.tiff", height = 6, width = 7, dpi = 300, device = "tiff")
+
+t1$plot_diff_bar(use_number = 1:100, width = 0.8, group_order = c("CON", "SCP", "CP"), color_values = my_colors)
+ggsave("8_LDA/lda_group_100.tiff", height = 18, width = 7, dpi = 300, device = "tiff")
+
+
+# Show part of the table
+t1$res_diff[1:5, c(1, 3, 4, 6)]
+
+# Plot the abundance of biomarkers detected by LEfSe 
+t1$plot_diff_abund(use_number = 1:20, group_order = c("CON", "SCP", "CP"), color_values = my_colors)
+ggsave("8_LDA/abundance_biomarkers_group_20.tiff", height = 8, width = 7, dpi = 300, device = "tiff")
+
+
+# Use Genus level for parameter taxa_level
+t2 <- trans_diff$new(dataset = dataset, method = "lefse", group = "group", taxa_level = "Genus", alpha = 0.5, p_adjust_method = "none", lefse_subgroup = NULL)
+## Group_order is designed to sort the groups
+g1 <- t2$plot_diff_bar(use_number = 1:20, group_order = c("CON", "SCP", "CP"), color_values = my_colors)
+## Plot the abundance using same taxa in g1
+g2 <- t2$plot_diff_abund(group_order = c("CON", "SCP", "CP"), select_taxa = t2$plot_diff_bar_taxa, color_values = my_colors)
+## Merge g1 and g2
+## Remove g1 legend; remove g2 y axis text and ticks
+g1 <- g1 + theme(legend.position = "none")
+g2 <- g2 + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+gridExtra::grid.arrange(g1, g2, ncol = 2, nrow = 1, widths = c(2, 1.7))
+### Save as "LDA+Relative_Abundance-Group.png"
+
+t3 <- trans_diff$new(dataset = dataset, method = "lefse", group = "group", taxa_level = "Genus", alpha = 0.5, p_adjust_method = "none", lefse_subgroup = NULL)
+g3 <- t3$plot_diff_bar(use_number = 1:100, group_order = c("CON", "SCP", "CP"), color_values = my_colors)
+g4 <- t3$plot_diff_abund(group_order = c("CON", "SCP", "CP"), select_taxa = t3$plot_diff_bar_taxa, color_values = my_colors)
+g3 <- g3 + theme(legend.position = "none")
+g4 <- g4 + theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+gridExtra::grid.arrange(g3, g4, ncol = 2, nrow = 1, widths = c(2, 1.7))
+### Save as "LDA+Relative_Abundance-Group_FULL.pdf" (20 x 7)
+```
+
+## 4.3. Microbiome marker identification
+
+```{r}
+# https://www.bioconductor.org/packages/devel/bioc/vignettes/microbiomeMarker/inst/doc/microbiomeMarker-vignette.html
+
+OF_edger <- run_edger(
+  physeq_OF,
+  group = "group",
+  pvalue_cutoff = 0.1,
+  p_adjust = "fdr"
+)
+OF_edger
+
+# Heat Map #3
+# Use annotation_col with a named vector to map your custom colors to the groups
+plot_heatmap(
+  OF_edger, 
+  transform = "log10p", 
+  group = "group",
+  annotation_col = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02")
+)
+## Save as "Heatmap_log10p_group.pdf" (4 x 8)
+```
+
+## 8.4. Bacterial Families with Significant Pairwise Differences
+
+```{r}
+# 1. Enforce the exact group factor levels order inside the phyloseq object
+physeq_OF@sam_data$group <- factor(physeq_OF@sam_data$group, levels = c("CON", "SCP", "CP"))
+
+# 2. Transform raw counts into Relative Abundance (%)
+physeq_rel <- transform_sample_counts(physeq_OF, function(x) 100 * x / sum(x))
+
+# 3. Taxonomically glom to Family level
+physeq_fam <- tax_glom(physeq_rel, taxrank = "Family")
+
+# 4. Melt to data frame for thorough statistical screening
+df_all <- psmelt(physeq_fam)
+
+# 5. Run Wilcoxon tests and keep only the exact pairs that are significant per family
+pairwise_screening <- df_all %>%
+  group_by(Family) %>%
+  filter(sum(Abundance) > 0) %>% 
+  do(tidy_test = pairwise.wilcox.test(.$Abundance, .$group, p.adjust.method = "none") %>% tidy()) %>%
+  ungroup() %>%
+  unnest(tidy_test) %>%
+  filter(p.value < 0.05)
+
+## Extract only the unique names of families that passed the pairwise threshold
+target_families <- unique(pairwise_screening$Family)
+
+# 6. Checkpoint: Safeguard against empty sets
+if(length(target_families) == 0) {
+  stop("No bacterial families reached statistical significance in any pairwise comparison.")
+}
+
+# 7. Filter the phyloseq data
+physeq_sub <- subset_taxa(physeq_fam, Family %in% target_families)
+df_plot <- psmelt(physeq_sub)
+
+# 8. Create a custom plotting function to apply targeted comparisons per facet
+plot_list <- lapply(target_families, function(fam) {
+  
+  ## Filter data for this specific family
+  df_fam <- filter(df_plot, Family == fam)
+  
+  ## Extract the specific significant pairs for THIS family only
+  fam_sig_pairs <- pairwise_screening %>%
+    filter(Family == fam) %>%
+    rowwise() %>%
+    mutate(pair = list(c(group1, group2))) %>%
+    pull(pair)
+  
+  ## Build the individual panel cleanly
+  ggplot(df_fam, aes(x = group, y = Abundance, fill = group)) +
+    geom_boxplot(alpha = 0.7, outlier.shape = NA, width = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.6, color = "black", size = 2) +
+    facet_wrap(~Family, scales = "free_y") +
+    
+    ### Inject only the significant brackets for this panel
+    stat_compare_means(
+      comparisons = fam_sig_pairs, 
+      label = "p.signif", 
+      method = "wilcox.test",
+      exact = FALSE,
+      symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))
+    ) +
+    
+    scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02")) +
+    theme_bw() +
+    labs(x = NULL, y = NULL) + # Clean labels for grid blending
+    theme(
+      strip.background = element_rect(fill = "gray90"),
+      strip.text = element_text(face = "bold.italic", size = 11),
+      axis.text.x = element_text(size = 11, face = "bold"),
+      legend.position = "none" # Hide individual legends
+    )
+})
+
+# 9. Assemble Proportionally in a Single Row
+combined_panels <- cowplot::plot_grid(plotlist = plot_list, nrow = 1, align = "h", axis = "tb")
+
+dummy_plot <- ggplot(df_plot, aes(x = group, y = Abundance, fill = group)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("CON" = "#008B8B", "SCP" = "#8A2BE2", "CP" = "#D95F02")) +
+  labs(fill = "Group") + theme_bw() + theme(legend.position = "right")
+shared_legend <- cowplot::get_legend(dummy_plot)
+
+## Final integration with y-axis label and main title
+final_row_plot <- cowplot::plot_grid(
+  cowplot::ggdraw() + cowplot::draw_label("Relative Abundance (%)", angle = 90, fontface = "bold", size = 12),
+  combined_panels,
+  shared_legend,
+  nrow = 1,
+  rel_widths = c(0.05, 1, 0.15)
+)
+
+# 10. Save the layout
+calculated_width <- length(target_families) * 3.8
+ggsave("8_LDA/All_Pairwise_Significant_Families.tiff", final_row_plot, height = 5, width = calculated_width, dpi = 300, device = "tiff")
+```
+
+## 8.5. Family Differential Abundance Info
+```{r}
+# 1. Enforce factor level ordering for experimental cohorts
+physeq_OF@sam_data$group <- factor(physeq_OF@sam_data$group, levels = c("CON", "SCP", "CP"))
+
+# 2. Transform raw counts to Relative Abundance (%)
+physeq_rel <- transform_sample_counts(physeq_OF, function(x) 100 * x / sum(x))
+
+# 3. Taxonomically agglomerate at the Family level
+physeq_fam <- tax_glom(physeq_rel, taxrank = "Family")
+
+# 4. Melt to long-format data frame
+df_all <- psmelt(physeq_fam)
+
+# 5. Extract total number of evaluated bacterial families (non-zero abundance)
+evaluated_families <- df_all %>%
+  group_by(Family) %>%
+  filter(sum(Abundance) > 0) %>%
+  summarise(Total_Abundance = sum(Abundance), .groups = "drop")
+
+total_n_families <- nrow(evaluated_families)
+cat("Total number of evaluated bacterial families:", total_n_families, "\n")
+
+# 6. Execute pairwise Wilcoxon rank-sum tests across all families
+pairwise_tests <- df_all %>%
+  group_by(Family) %>%
+  filter(sum(Abundance) > 0) %>%
+  do(tidy_test = pairwise.wilcox.test(.$Abundance, .$group, p.adjust.method = "none") %>% tidy()) %>%
+  ungroup() %>%
+  unnest(tidy_test) %>%
+  rename(
+    Group1 = group1,
+    Group2 = group2,
+    Unadjusted_p_value = p.value
+  ) %>%
+  # Apply global False Discovery Rate (FDR / Benjamini-Hochberg) adjustment
+  mutate(FDR_q_value = p.adjust(Unadjusted_p_value, method = "BH"))
+
+# 7. Compute descriptive statistics (Median and IQR) per group
+group_stats <- df_all %>%
+  group_by(Family, group) %>%
+  summarise(
+    Median = median(Abundance),
+    IQR_25 = quantile(Abundance, 0.25),
+    IQR_75 = quantile(Abundance, 0.75),
+    .groups = "drop"
+  )
+
+# 8. Compute effect sizes (Median Difference between comparison pairs)
+effect_sizes <- pairwise_tests %>%
+  left_join(group_stats, by = c("Family" = "Family", "Group1" = "group")) %>%
+  rename(Median_Group1 = Median, IQR25_Group1 = IQR_25, IQR75_Group1 = IQR_75) %>%
+  left_join(group_stats, by = c("Family" = "Family", "Group2" = "group")) %>%
+  rename(Median_Group2 = Median, IQR25_Group2 = IQR_25, IQR75_Group2 = IQR_75) %>%
+  mutate(
+    Comparison = paste(Group2, "vs", Group1),
+    Median_Difference = Median_Group2 - Median_Group1
+  ) %>%
+  select(
+    Family,
+    Comparison,
+    Median_Group2,
+    IQR25_Group2,
+    IQR75_Group2,
+    Median_Group1,
+    IQR25_Group1,
+    IQR75_Group1,
+    Median_Difference,
+    Unadjusted_p_value,
+    FDR_q_value
+  ) %>%
+  arrange(Family, Comparison)
+
+# 9. Export comprehensive results for Supplementary Table S6
+write.csv(effect_sizes, "Supplementary_Table_S6_Family_Differential_Abundance.csv", row.names = FALSE)
+```
+
+## 8.6. Family Differential Abundance Info II
+```{r}
+# 1. Enforce factor level ordering for experimental cohorts
+physeq_OF@sam_data$group <- factor(physeq_OF@sam_data$group, levels = c("CON", "SCP", "CP"))
+
+# 2. Transform raw counts to Relative Abundance (%)
+physeq_rel <- transform_sample_counts(physeq_OF, function(x) 100 * x / sum(x))
+
+# 3. Taxonomically agglomerate at the Family level
+physeq_fam <- tax_glom(physeq_rel, taxrank = "Family")
+
+# 4. Melt phyloseq object to long-format data frame
+df_all <- psmelt(physeq_fam)
+
+# 5. Extract and print total number of evaluated bacterial families
+evaluated_families <- df_all %>%
+  group_by(Family) %>%
+  filter(sum(Abundance) > 0) %>%
+  summarise(Total_Abundance = sum(Abundance), .groups = "drop")
+
+total_n_families <- nrow(evaluated_families)
+cat("Total number of evaluated bacterial families:", total_n_families, "\n")
+
+# 6. Execute pairwise Wilcoxon rank-sum tests and calculate FDR (Benjamini-Hochberg)
+pairwise_tests <- df_all %>%
+  group_by(Family) %>%
+  filter(sum(Abundance) > 0) %>%
+  do(tidy_test = pairwise.wilcox.test(.$Abundance, .$group, p.adjust.method = "none") %>% tidy()) %>%
+  ungroup() %>%
+  unnest(tidy_test) %>%
+  rename(Group1 = group1, Group2 = group2, p_raw = p.value) %>%
+  mutate(p_adj_BH = p.adjust(p_raw, method = "BH"))
+
+# 7. Compute descriptive metrics (Median and IQR) per group
+group_stats <- df_all %>%
+  group_by(Family, group) %>%
+  summarise(
+    Median = median(Abundance),
+    IQR_25 = quantile(Abundance, 0.25),
+    IQR_75 = quantile(Abundance, 0.75),
+    .groups = "drop"
+  )
+
+# 8. Merge statistics, format publication-ready labels, and calculate effect sizes
+supp_data_s3 <- pairwise_tests %>%
+  left_join(group_stats, by = c("Family" = "Family", "Group1" = "group")) %>%
+  rename(Median_G1 = Median, IQR25_G1 = IQR_25, IQR75_G1 = IQR_75) %>%
+  left_join(group_stats, by = c("Family" = "Family", "Group2" = "group")) %>%
+  rename(Median_G2 = Median, IQR25_G2 = IQR_25, IQR75_G2 = IQR_75) %>%
+  mutate(
+    `Bacterial Family` = Family,
+    `Comparison (Group 1 vs Group 2)` = paste(Group1, "vs", Group2),
+    `Median (IQR) Group 1 (%)` = sprintf("%.4f (%.4f–%.4f)", Median_G1, IQR25_G1, IQR75_G1),
+    `Median (IQR) Group 2 (%)` = sprintf("%.4f (%.4f–%.4f)", Median_G2, IQR25_G2, IQR75_G2),
+    `Effect Size (ΔMedian, %)` = round(Median_G1 - Median_G2, 4),
+    `Unadjusted p-value (p_raw)` = round(p_raw, 4),
+    `FDR-adjusted p-value (p_adj_BH)` = round(p_adj_BH, 4)
+  ) %>%
+  select(
+    `Bacterial Family`,
+    `Comparison (Group 1 vs Group 2)`,
+    `Median (IQR) Group 1 (%)`,
+    `Median (IQR) Group 2 (%)`,
+    `Effect Size (ΔMedian, %)`,
+    `Unadjusted p-value (p_raw)`,
+    `FDR-adjusted p-value (p_adj_BH)`
+  ) %>%
+  arrange(`Bacterial Family`, `Comparison (Group 1 vs Group 2)`)
+
+# 9. Export formatted table to Excel (.xlsx) and CSV (.csv)
+write_xlsx(supp_data_s3, path = "Supplementary_Data_S3.xlsx")
+write.csv(supp_data_s3, file = "Supplementary_Data_S3.csv", row.names = FALSE)
+
+cat("Successfully generated 'Supplementary_Data_S3.xlsx' and 'Supplementary_Data_S3.csv'.\n")
+```
+
+
+## 8.7. Family-Level Differential Abundance via ANCOM-BC2
+# Purpose : Compositionally aware differential abundance testing across cohorts
+# Required Packages: phyloseq, TreeSummarizedExperiment, ANCOMBC, S4Vectors
+```{r}
+# 1. Load the primary phyloseq package
+library(phyloseq)
+
+# 2. Agglomerate raw sequence counts at the Family level
+# NOTE: Raw count data (not normalized percentages) are required for ANCOM-BC2
+physeq_fam_raw <- phyloseq::tax_glom(physeq_OF, taxrank = "Family")
+
+# 3. Extract the count matrix (taxa as rows, samples as columns)
+raw_counts <- as(physeq_fam_raw@otu_table, "matrix")
+if (!phyloseq::taxa_are_rows(physeq_fam_raw)) {
+  raw_counts <- t(raw_counts)
+}
+
+# 4. Extract taxonomy and format family names as unique identifiers
+tax_mat <- as(physeq_fam_raw@tax_table, "matrix")
+fam_names <- as.character(tax_mat[, "Family"])
+fam_names[is.na(fam_names) | fam_names == ""] <- "Unclassified_Family"
+rownames(raw_counts) <- make.unique(fam_names)
+
+# 5. Extract metadata and enforce factor levels
+meta_df <- data.frame(
+  group = as.character(physeq_fam_raw@sam_data$group),
+  row.names = rownames(physeq_fam_raw@sam_data),
+  stringsAsFactors = FALSE
+)
+
+# 6. Export input data to a temporary RDS file to ensure a clean R execution environment
+saveRDS(list(counts = raw_counts, meta = meta_df), file = "ancombc_input_temp.rds")
+
+# 7. Execute ANCOM-BC2 in an isolated background R session to avoid namespace conflicts
+system2(
+  command = R.home("bin/Rscript"),
+  args = c("-e", shQuote('
+    library(TreeSummarizedExperiment)
+    library(ANCOMBC)
+    library(S4Vectors)
+    
+    # Load prepared input data
+    dat <- readRDS("ancombc_input_temp.rds")
+    meta <- dat$meta
+    meta$group <- factor(meta$group, levels = c("CON", "SCP", "CP"))
+    
+    # Construct TreeSummarizedExperiment object
+    tse <- TreeSummarizedExperiment(
+      assays = list(counts = dat$counts),
+      colData = S4Vectors::DataFrame(meta)
+    )
+    
+    # Execute ANCOM-BC2 pairwise testing
+    set.seed(1234)
+    out <- ancombc2(
+      data = tse,
+      assay_name = "counts",
+      tax_level = NULL,            # Input matrix is already agglomerated at family level
+      fix_formula = "group",
+      p_adj_method = "BH",
+      prv_cut = 0.10,              # Prevalence threshold: present in >= 10% of samples
+      group = "group",
+      struc_zero = TRUE,           # Screen for structural zeros
+      neg_lb = TRUE,               # Pseudo-count lower bound
+      pairwise = TRUE,             # Multi-group pairwise comparisons
+      verbose = FALSE
+    )
+    
+    # Export full pairwise differential results to CSV
+    write.csv(out$res_pair, "Supplementary Data S4. ANCOMBC2 Family Pairwise Results.csv", row.names = FALSE)
+    cat("ANCOM-BC2 analysis completed successfully.\n")
+  '))
+)
+
+# 8. Load and inspect results in the current session
+if (file.exists("Supplementary Data S4. ANCOMBC2 Family Pairwise Results.csv")) {
+  res_ancom <- read.csv("Supplementary Data S4. ANCOMBC2 Family Pairwise Results.csv")
+  cat("Output Dimensions:", dim(res_ancom), "\n")
+  print(head(res_ancom[, 1:7]))
+}
+```
+
+# 9. Heat tree (Metacoder)
+
+## 9.1. Generate the taxasums files per taxonomy level
+
+```{r}
+# Reference: 
+# https://grunwaldlab.github.io/metacoder_documentation/example.html
+
+# 1. Setup output directory
+output_path_heattree <- "9_Heat_tree"
+dir.create(output_path_heattree, showWarnings = FALSE, recursive = TRUE)
+
+# 2. Load primary data
+## Read the OTU matrix and force it into a standard data frame
+otu_data <- as.data.frame(read_qza("filtered-table-genus.qza")$data) # or table-dada2.qza
+tax_data <- read_qza("taxa.qza")$data                      
+
+# 3. Synchronize and Merge
+otu_data$Feature.ID <- rownames(otu_data)
+combined_data <- merge(otu_data, tax_data[, c("Feature.ID", "Taxon")], by = "Feature.ID")
+
+# 4. Manual Aggregation Function
+# This bypasses Metacoder/Phyloseq bugs while preserving all hierarchical info
+generate_taxasums <- function(data, depth) {
+  data %>%
+    # Split taxonomy string and rejoin up to the specified level
+    mutate(Target_Taxon = sapply(strsplit(as.character(Taxon), ";"), function(x) {
+      paste(x[1:min(length(x), depth)], collapse = ";")
+    })) %>%
+    # This cleans the taxon names specifically
+    mutate(Target_Taxon = gsub('"', '', Target_Taxon)) %>%
+    # Clean up the table for summation
+    select(-Feature.ID, -Taxon) %>%
+    group_by(Target_Taxon) %>%
+    summarise(across(everything(), sum)) %>%
+    rename(OTU_ID = Target_Taxon)
+}
+
+# 5. Process and Export all 7 levels
+# This keeps your sample headers exactly as they are
+tax_levels <- list(Kingdom=1, Phylum=2, Class=3, Order=4, Family=5, Genus=6, Species=7)
+
+for (level_name in names(tax_levels)) {
+  result_table <- generate_taxasums(combined_data, tax_levels[[level_name]])
+  
+  # Remove any empty or NA rows
+  result_table <- result_table[result_table$OTU_ID != "" & !is.na(result_table$OTU_ID), ]
+  
+  # Export to CSV without quotes in the final file
+  file_name <- paste0("taxasums_", tolower(level_name), ".csv")
+  write.csv(result_table, file.path(output_path, file_name), row.names = FALSE, quote = FALSE)
+}
+
+message("---------------------------------------------------")
+message("SUCCESS: 7 files generated in '9_Heat_tree'")
+message("All quotes removed and taxonomy strings preserved.")
+message("---------------------------------------------------")
+```
+
+## 9.2. Plot the heat trees
+```{r}
+# Generate and load the function generate_otu_xlsx
+source("taxa_to_heat_tree.R") 
+taxa_to_heat_tree("9_Heat_tree")
+
+OTUs_Heat_Tree <- read_excel('9_Heat_tree/taxasums_all.xlsx', col_names = TRUE) # abundance matrix
+OTUs_Heat_Tree$OTU_ID[1:4]
+print(OTUs_Heat_Tree)
+
+## Process the abundance matrix, and parse the taxonomic information, at the same time
+obj <- parse_tax_data(OTUs_Heat_Tree,
+                      class_cols = "OTU_ID", # the column that contains taxonomic information
+                      class_sep = ";", # the character used to separate taxa in the classification
+                      class_regex = "^(.+)__(.+)$", # Regex identifying where the data for each taxon is
+                      class_key = c(tax_rank="info",
+                                    tax_name="taxon_name")) # A key describing each regex capture group
+
+### Return a taxmap object
+print(obj)
+
+## Abundance matrix manipulations
+### Removing low-abundance counts (less than 5 reads to zero)
+obj$data$tax_data <- zero_low_counts(obj, dataset = "tax_data", min_count = 5)
+
+### Check how many OTUs have no reads
+no_reads <- rowSums(obj$data$tax_data[, metadata$SampleID]) == 0
+sum(no_reads)
+
+### Remove OTUs that doesn´t have reads (OPTIONAL)
+obj <- filter_obs(obj, target = "tax_data", ! no_reads, drop_taxa = TRUE)
+print(obj) # we obtained 410 taxa and 172 OTUs
+
+### Accounting for un-even sampling
+obj$data$tax_data <- calc_obs_props(obj, "tax_data") # divide each sample's counts by the total number of counts observed for each sample, resulting in a proportion
+print(obj)
+
+### Getting per-taxon information
+obj$data$tax_abund <- calc_taxon_abund(obj, "tax_data",
+                                       cols = metadata$SampleID)
+print(obj)
+
+#### Calculate the number of samples that have reads for each taxon
+obj$data$tax_occ <- calc_n_samples(obj, "tax_abund", groups = metadata$group, cols = metadata$SampleID)
+print(obj)
+
+### Plotting taxonomic data
+set.seed(1) # This makes the plot appear the same each time it is run 
+heat_tree(obj, 
+          node_label = taxon_names,
+          node_size = n_obs,
+          node_color = CON, # plots the number of "CON" samples that have reads for each taxon as the size of each taxon
+          node_size_axis_label = "OTU count",
+          node_color_axis_label = "Samples with reads",
+          layout = "davidson-harel", # The primary layout algorithm
+          initial_layout = "reingold-tilford") # The layout algorithm that initializes node locations
+ggsave("9_Heat_tree/heat_tree_CON.tiff", height = 4, width = 9, dpi = 300, device = "tiff", bg = "white")
+
+heat_tree(obj, 
+          node_label = taxon_names,
+          node_size = n_obs,
+          node_color = SCP, # plots the number of "SCP" samples that have reads for each taxon as the size of each taxon
+          node_size_axis_label = "OTU count",
+          node_color_axis_label = "Samples with reads",
+          layout = "davidson-harel", # The primary layout algorithm
+          initial_layout = "reingold-tilford") # The layout algorithm that initializes node locations
+ggsave("9_Heat_tree/heat_tree_SCP.tiff", height = 4, width = 9, dpi = 300, device = "tiff", bg = "white")
+
+heat_tree(obj, 
+          node_label = taxon_names,
+          node_size = n_obs,
+          node_color = CP, # plots the number of "CP" samples that have reads for each taxon as the size of each taxon
+          node_size_axis_label = "OTU count",
+          node_color_axis_label = "Samples with reads",
+          layout = "davidson-harel", # The primary layout algorithm
+          initial_layout = "reingold-tilford") # The layout algorithm that initializes node locations
+ggsave("9_Heat_tree/heat_tree_CP.tiff", height = 4, width = 9, dpi = 300, device = "tiff", bg = "white")
+```
+
+## 2.9. Another option to alpha diversity
+```{r}
+metadata$shannon <- diversity(physeq_OF@otu_table@.Data[, metadata$SampleID],
+                                         index = "shannon",
+                                         MARGIN = 2) # What orietation the matrix is in
+
+metadata$inv_simp <- diversity(physeq_OF@otu_table@.Data[, metadata$SampleID],
+                               index = "invsimpson",
+                               MARGIN = 2) # What orietation the matrix is in
+
+ggplot(metadata, aes(x = group, y = shannon)) +
+  geom_boxplot()
+ggsave("2_Alpha_diversity/alpha-diversity_vegan_shannon_group.tiff", height = 6, width = 10, dpi = 300, device = "tiff")
+
+ggplot(metadata, aes(x = group, y = inv_simp)) +
+  geom_boxplot()
+ggsave("2_Alpha_diversity/alpha-diversity_vegan_inv_simp_group.tiff", height = 6, width = 10, dpi = 300, device = "tiff")
+
+# Analysis of variance (ANOVA) (in general)
+anova_inv_simp_group <- aov(inv_simp ~ group, metadata)
+anova_inv_simp_group_summary = summary(anova_inv_simp_group)
+capture.output(anova_inv_simp_group_summary, file = "2_Alpha_diversity/anova_inv_simp_group.txt")
+
+# Tukey's Honest Significant Difference (HSD) (to determine which is different)
+tukey_result_group <- HSD.test(anova_inv_simp_group, "group", group = TRUE)
+print(tukey_result_group)
+capture.output(tukey_result_group, file = "2_Alpha_diversity/Tukey_inv_simp_group.txt")
+
+group_data <- tukey_result_group$groups[order(rownames(tukey_result_group$groups)),]
+ggplot(metadata, aes(x = group, y = inv_simp)) +
+  geom_text(data = data.frame(),
+            aes(x = rownames(group_data), y = max(metadata$inv_simp) + 1, label = group_data$groups),
+            col = 'black',
+            size = 10) +
+  geom_boxplot() +
+  ggtitle("Alpha diversity of groups") +
+  xlab("Group") +
+  ylab("Inverse Simpson Index")
+ggsave("2_Alpha_diversity/Tukey_inv_simpson_group.tiff", height = 4, width = 9, dpi = 300, device = "tiff")
+```
+
+## 9.3. Comparing two treatments/groups (Wilcoxon Rank Sum test)
+```{r}
+obj$data$diff_table <- compare_groups(obj, dataset = "tax_abund",
+                                      cols = metadata$SampleID, # What columns of sample data to use
+                                      groups = metadata$group) # What category each sample is assigned to
+diff_table_breed = print(obj$data$diff_table)
+options(print=999999)
+write.csv(diff_table_breed,"9_Heat_tree/diff_table_group.csv")
+
+class_data <- obj$data$class_data
+write.csv(class_data,"9_Heat_tree/class_data_group.csv")
+
+set.seed(1)
+heat_tree_matrix(obj,
+                 data = "diff_table",
+                 node_size = n_obs, # n_obs is a function that calculates, in this case, the number of OTUs per taxon
+                 node_label = taxon_names,
+                 node_color = log2_median_ratio, # A column from `obj$data$diff_table`
+                 node_color_range = diverging_palette(), # The built-in palette for diverging data
+                 node_color_trans = "linear", # The default is scaled by circle area
+                 node_color_interval = c(-3, 3), # The range of `log2_median_ratio` to display
+                 edge_color_interval = c(-3, 3), # The range of `log2_median_ratio` to display
+                 node_size_axis_label = "Number of OTUs",
+                 node_color_axis_label = "Log2 ratio median proportions",
+                 layout = "davidson-harel", # The primary layout algorithm
+                 initial_layout = "reingold-tilford", # The layout algorithm that initializes node locations
+                 output_file = "9_Heat_tree/differential_heat_tree.pdf") # Saves the plot as a pdf file
+ggsave("9_Heat_tree/differential_heat_tree_group.tiff", height = 10, width = 8, dpi = 300, device = "tiff", bg = "white")
+```
+
+## 9.4. Extract Heat-Tree Differential Statistics (Metacoder)
+```{r}
+# 1. Print existing column names in diff_table for verification
+cat("Columns in diff_table:\n")
+print(colnames(obj$data$diff_table))
+
+# 2. Extract tax names and ranks
+tax_names <- taxon_names(obj)
+tax_ranks <- taxon_ranks(obj)
+
+# 3. Format diff_table dynamically
+raw_diff <- as.data.frame(obj$data$diff_table)
+
+# Add adjusted p-values if not already present
+if (!"wilcox_p_value_adj" %in% colnames(raw_diff)) {
+  raw_diff$wilcox_p_value_adj <- p.adjust(raw_diff$wilcox_p_value, method = "fdr")
+}
+
+# Attach taxon names and ranks safely
+raw_diff$Taxon_Name <- as.character(tax_names[raw_diff$taxon_id])
+raw_diff$Taxonomic_Rank <- as.character(tax_ranks[raw_diff$taxon_id])
+raw_diff$Comparison <- paste(raw_diff$treatment_1, "vs", raw_diff$treatment_2)
+
+# Standardize numeric outputs
+diff_df <- raw_diff %>%
+  dplyr::mutate(
+    `Taxon Name` = Taxon_Name,
+    `Taxonomic Rank` = Taxonomic_Rank,
+    `Comparison (Group 1 vs Group 2)` = Comparison,
+    `Effect Size (Log2 Median Ratio)` = round(log2_median_ratio, 4),
+    `Unadjusted p-value (p_raw)` = round(wilcox_p_value, 4),
+    `FDR-adjusted p-value (p_adj_BH)` = round(wilcox_p_value_adj, 4)
+  )
+
+# Keep all key statistical columns cleanly
+final_cols <- c(
+  "Taxon Name",
+  "Taxonomic Rank",
+  "Comparison (Group 1 vs Group 2)",
+  "Effect Size (Log2 Median Ratio)",
+  "Unadjusted p-value (p_raw)",
+  "FDR-adjusted p-value (p_adj_BH)"
+)
+
+# If group-specific medians/means exist, append them
+extra_num_cols <- intersect(colnames(raw_diff), c("prop_1", "prop_2", "median_1", "median_2", "mean_1", "mean_2"))
+if (length(extra_num_cols) > 0) {
+  diff_df[extra_num_cols] <- lapply(diff_df[extra_num_cols], function(x) round(x, 6))
+  final_cols <- c(final_cols, extra_num_cols)
+}
+
+diff_df_final <- diff_df[, final_cols]
+
+# 4. Export to Excel and CSV
+writexl::write_xlsx(diff_df_final, path = "Supplementary Data S5. Heat Tree Statistics.xlsx")
+write.csv(diff_df_final, file = "Supplementary Data S5. Heat Tree Statistics.csv", row.names = FALSE)
+
+cat("Successfully exported 'Supplementary_Data_S5_Heat_Tree_Statistics.xlsx' and '.csv'!\n")
+```
+
+# 10. Venn Diagrams
+## 10.1. Option 1
+```{r}
+# 1. Directory and Data Preparation
+output_path_venn <- "10_Venn_Diagram"
+dir.create(output_path_venn, showWarnings = FALSE, recursive = TRUE)
+
+# Generate the Venn list from the phyloseq object and export text
+vennlist_group <- get_vennlist(physeq_MF, factorNames="group")
+capture.output(vennlist_group, file = "10_Venn_Diagram/VennList_Group.txt")
+
+# 2. OTU Processing per Group
+# Extract the taxonomy
+OTUs_List <- physeq_MF@tax_table@.Data
+
+# Function to clean and extract unique Genus names
+process_otu_group <- function(otu_ids, tax_table) {
+  tax_subset <- tax_table[otu_ids, "Genus"]
+  tax_mat <- matrix(tax_subset)
+  # Remove duplicates and "NA" strings often generated by QIIME2/phyloseq imports
+  clean_tax <- tax_mat[!duplicated(tax_mat), ]
+  clean_tax <- clean_tax[clean_tax != "NA" & !is.na(clean_tax)]
+  return(data.frame(Genus = clean_tax))
+}
+
+CON <- process_otu_group(vennlist_group$`CON`, OTUs_List)
+SCP <- process_otu_group(vennlist_group$`SCP`, OTUs_List)
+CP  <- process_otu_group(vennlist_group$`CP`, OTUs_List)
+
+# Merge and save the Genus matrix (using 'zoo' to handle uneven row numbers)
+Venn_Matrix_Group <- data.frame(CP, cbind(zoo(, 1:max(nrow(CP), nrow(CON), nrow(SCP))), 
+                                         as.zoo(CON), as.zoo(SCP)))
+colnames(Venn_Matrix_Group) <- c("CP", "CON", "SCP")
+write.csv(Venn_Matrix_Group, "10_Venn_Diagram/Venn_Matrix_Group.csv", row.names=FALSE)
+
+# 3. Final Graphic Generation
+
+# Disable log files
+options(warn = -1) 
+
+venn.plot <- venn.diagram(
+  x = vennlist_group,
+  category.names = c("CON", "SCP", "CP"),
+  filename = "10_Venn_Diagram/Venn_Diagram_Group_FINAL.tiff",
+  output = TRUE,
+  
+  # Circle Aesthetics
+  fill = c("#008B8B", "#8A2BE2", "#D95F02"), # Distinct, professional colors
+  alpha = 0.40,
+  lty = "solid",
+  lwd = 2,
+  col = "black", # Border color
+  
+  # Intersection Numbers
+  cex = 1.5,             # Size of the numbers inside circles
+  fontface = "bold",
+  fontfamily = "sans",
+  
+  # Category Label Settings
+  cat.cex = 1.5,
+  cat.fontface = "bold",
+  cat.default.pos = "outer",
+  cat.dist = c(0.05, 0.05, 0.05),
+  
+  # Export Quality
+  imagetype = "tiff",
+  res = 300,             # High resolution for publication
+  height = 2500, 
+  width = 2500,
+  units = "px",
+  compression = "lzw",
+  bg = "white"
+)
+
+# 4. Export Partitions (Useful for supplementary tables)
+getven_group <- get.venn.partitions(vennlist_group)
+getven_clean <- data.frame(lapply(getven_group, as.character), stringsAsFactors=FALSE)
+write.csv(getven_clean, "10_Venn_Diagram/Venn_Partitions_Group.csv")
+
+message("Process complete. Check the '10_Venn_Diagram' folder for the final TIFF with numbers.")
+```
+
+## 10.2. Option 2
+```{r}
+vennp1 <- venn.diagram(vennlist_group,
+                      height=5,
+                      width=5, 
+                      filename=NULL, 
+                      fill=c("#008B8B", "#D95F02", "#8A2BE2"),
+                      cat.col=c("#008B8B", "#D95F02", "#8A2BE2"),
+                      alpha = 0.85, 
+                      fontfamily = "serif",
+                      fontface = "bold",
+                      cex = 1.2,
+                      cat.cex = 1.3,
+                      cat.default.pos = "outer",
+                      cat.dist=0.1,
+                      margin = 0.1, 
+                      lwd = 3,
+                      lty ='dotted',
+                      imagetype = "svg")
+grid::grid.draw(vennp1)
+## Save as 'Venn_Diagram_v2_Group.png'
+```
+
+# 11. Pie Plots
+```{r}
+# https://cran.r-project.org/web/packages/microeco/microeco.pdf
+
+# Directory and Data Preparation
+output_path_pie <- "11_Pie_plot"
+dir.create(output_path_pie, showWarnings = FALSE, recursive = TRUE)
+
+t1 <- trans_abund$new(dataset = dataset, taxrank = "Phylum", ntaxa = 7, groupmean = "group", use_percentage = TRUE)
+## all pie chart in one row
+t1$plot_pie(facet_nrow = 1, legend_text_italic = TRUE)
+ggsave(file="11_Pie_plot/Pie_plot_Group_Phylum.tiff", width=16, height=6, dpi = 300, limitsize =FALSE, bg = "white")
+
+### https://r-graph-gallery.com/38-rcolorbrewers-palettes.html
+t2 <- trans_abund$new(dataset = dataset, taxrank = "Genus", ntaxa = 11, groupmean = "group", use_percentage = TRUE)
+t2$plot_pie(facet_nrow = 1, legend_text_italic = TRUE, color_values = rev(c(RColorBrewer::brewer.pal(12, "Set3"), "grey50")))
+ggsave(file="11_Pie_plot/Pie_plot_Group_Genus.tiff", width=16, height=6, dpi = 300, limitsize =FALSE, bg = "white")
+
+
+samples <- sample_names(physeq_MF)
+dataset$sample_table$samples <- samples ## https://sparkbyexamples.com/r-programming/add-column-to-dataframe-in-r/#:~:text=To%20add%20a%20new%20column%20in%20R%2C%20use%20cbin(),after%20adding%20a%20new%20column.
+t3 <- trans_abund$new(dataset = dataset, taxrank = "Phylum", ntaxa = 7, groupmean = "samples", use_percentage = TRUE)
+t3$plot_pie(facet_nrow = 5, legend_text_italic = TRUE, color_values = rev(c(RColorBrewer::brewer.pal(12, "Set3"), "grey50")))
+ggsave(file="11_Pie_plot/Pie_plot_All_Phylum.tiff", width=10, height=7, dpi = 300, limitsize =FALSE, bg = "white")
+
+t4 <- trans_abund$new(dataset = dataset, taxrank = "Genus", ntaxa = 7, groupmean = "samples", use_percentage = TRUE)
+t4$plot_pie(facet_nrow = 5, legend_text_italic = TRUE, color_values = rev(c(RColorBrewer::brewer.pal(12, "Set3"), "grey50")))
+ggsave(file="11_Pie_plot/Pie_plot_All_Genus.tiff", width=12, height=7, dpi = 300, limitsize =FALSE, bg = "white")
+```
+
+# 12. Create a Biom table
+```{r}
+# Directory and Data Preparation
+output_path_biom <- "12_Biom_table"
+dir.create(output_path_biom, showWarnings = FALSE, recursive = TRUE)
+
+# Save the ASVs table
+otu_biom<-make_biom(physeq_MF@otu_table@.Data)
+write_biom(otu_biom,"12_Biom_table/otu_biom.biom")
+
+# Command to execute in Linux and save a Summary Table
+# biom summarize-table -i otu_biom.biom -o otu_biom.biom.txt
+```
