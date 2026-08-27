@@ -198,15 +198,14 @@ To reproduce all figures, tables, and statistical results from this repository:
 
 If you use the datasets, analytical pipelines, or scripts from this repository, please cite:
 
-> **Cornejo-Villanueva, V. G., et al.** *Effects of Cecotrophy Prevention on the Cecal Microbiota in Guinea Pigs (*Cavia porcellus*)*. (Manuscript under review).
+> **Cornejo-Villanueva, V. G.** *CaviCeco-16S: Cecal Microbiota Dynamics Under Cecotrophy Prevention in *Cavia porcellus**. (Manuscript under review).
 
 ---
 
 ## ✉️ Maintainer & Contact
 
 **Victor Guillermo Cornejo Villanueva**  
-* Master's Programme in Bioinformatics, Uppsala University  
+* Master's Programme in Bioinformatics - Biology Background, Uppsala University  
 * Laboratory of Molecular Physiology, Universidad Nacional Toribio Rodríguez de Mendoza (UNTRM)  
-* Alexander von Humboldt Institute of Tropical Medicine  
 * **GitHub:** [@Elcornevic](https://github.com/Elcornevic)  
 * **ORCID:** [0000-0002-6144-7450](https://orcid.org/0000-0002-6144-7450)
