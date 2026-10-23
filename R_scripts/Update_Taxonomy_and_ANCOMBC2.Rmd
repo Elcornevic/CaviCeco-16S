@@ -1,0 +1,121 @@
+---
+title: "Complete Pipeline: Creating Phyloseq with 150-bp Taxonomy and Re-running ANCOM-BC2"
+author: "Bioinformatic Analysis Pipeline"
+date: "`R Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia")
+```
+
+# 1. Load Required Libraries
+```{r}
+library(qiime2R)
+library(phyloseq)
+library(TreeSummarizedExperiment)
+library(ANCOMBC)
+library(S4Vectors)
+```
+
+# 2. Create Phyloseq Object Using the New 150-bp Taxonomy Artifact
+```{r}
+physeq_O <- qza_to_phyloseq(
+  features = "filtered-table-genus.qza",
+  tree = "tree/rooted_tree.qza",
+  taxonomy = "taxa-v3-150.qza",
+  metadata = "metadata.tsv"
+)
+
+physeq_O
+```
+
+# 3. Remove Archaea and Eukaryota
+```{r}
+physeq_OF <- subset_taxa(physeq_O, Kingdom != "d__Archaea")
+physeq_OF <- subset_taxa(physeq_OF, Kingdom != "d__Eukaryota")
+physeq_OF
+
+head(tax_table(physeq_OF))
+```
+
+# 4. Family-Level Differential Abundance via ANCOM-BC2
+```{r}
+# 4.1 Agglomerate raw sequence counts at the Family level
+# NOTE: Raw count data (not normalized percentages) are required for ANCOM-BC2
+physeq_fam_raw <- phyloseq::tax_glom(physeq_OF, taxrank = "Family")
+
+# 4.2 Extract the count matrix (taxa as rows, samples as columns)
+raw_counts <- as(physeq_fam_raw@otu_table, "matrix")
+if (!phyloseq::taxa_are_rows(physeq_fam_raw)) {
+  raw_counts <- t(raw_counts)
+}
+
+# 4.3 Extract taxonomy and format family names as unique identifiers
+tax_mat <- as(physeq_fam_raw@tax_table, "matrix")
+fam_names <- as.character(tax_mat[, "Family"])
+fam_names[is.na(fam_names) | fam_names == ""] <- "Unclassified_Family"
+rownames(raw_counts) <- make.unique(fam_names)
+
+# 4.4 Extract metadata and enforce factor levels
+meta_df <- data.frame(
+  group = as.character(physeq_fam_raw@sam_data$group),
+  row.names = rownames(physeq_fam_raw@sam_data),
+  stringsAsFactors = FALSE
+)
+
+# 4.5 Export input data to a temporary RDS file for clean execution
+saveRDS(list(counts = raw_counts, meta = meta_df), file = "ancombc_input_temp.rds")
+
+# 4.6 Execute ANCOM-BC2 in an isolated background R session to avoid namespace conflicts
+system2(
+  command = R.home("bin/Rscript"),
+  args = c("-e", shQuote('
+    library(TreeSummarizedExperiment)
+    library(ANCOMBC)
+    library(S4Vectors)
+    
+    # Load prepared input data
+    dat <- readRDS("ancombc_input_temp.rds")
+    meta <- dat$meta
+    meta$group <- factor(meta$group, levels = c("CON", "SCP", "CP"))
+    
+    # Construct TreeSummarizedExperiment object
+    tse <- TreeSummarizedExperiment(
+      assays = list(counts = dat$counts),
+      colData = S4Vectors::DataFrame(meta)
+    )
+    
+    # Execute ANCOM-BC2 pairwise testing
+    set.seed(1234)
+    out <- ancombc2(
+      data = tse,
+      assay_name = "counts",
+      tax_level = NULL,            # Input matrix is already agglomerated at family level
+      fix_formula = "group",
+      p_adj_method = "BH",
+      prv_cut = 0.10,              # Prevalence threshold: present in >= 10% of samples
+      group = "group",
+      struc_zero = TRUE,           # Screen for structural zeros
+      neg_lb = TRUE,               # Pseudo-count lower bound
+      pairwise = TRUE,             # Multi-group pairwise comparisons
+      verbose = FALSE
+    )
+    
+    # Export full pairwise differential results to CSV
+    write.csv(out$res_pair, "Supplementary Data S4v2. ANCOMBC2 Family Pairwise Results.csv", row.names = FALSE)
+    cat("ANCOM-BC2 re-analysis completed successfully.\n")
+  '))
+)
+```
+
+
+# 5. Inspect Updated Results
+```{r}
+if (file.exists("Supplementary Data S4v2. ANCOMBC2 Family Pairwise Results.csv")) {
+  res_ancom <- read.csv("Supplementary Data S4v2. ANCOMBC2 Family Pairwise Results.csv")
+  cat("Output Dimensions:", dim(res_ancom), "\n")
+  print(head(res_ancom[, 1:7]))
+}
+```
