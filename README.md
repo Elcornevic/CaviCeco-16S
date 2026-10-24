@@ -152,9 +152,10 @@ Raw single-end FASTQ reads were imported into QIIME 2. Sequence quality inspecti
 bash qiime2/run_dada2.sh
 ```
 
-### 2. Taxonomic Classification & Phylogenetic Reconstruction
-* **Taxonomy:** Taxonomic assignment was conducted using the `q2-feature-classifier` plugin with a Naive Bayes classifier trained on the **SILVA 138.2 SSU Ref NR99** database (`SILVA138.2_SSURef_NR99_uniform_classifier_full-length.qza`).
-* **Phylogeny:** Representative sequences were aligned using MAFFT, non-conserved/hypervariable positions were masked, and a rooted phylogenetic tree was constructed using FastTree 2 via `q2-phylogeny`:
+### 2. Taxonomic Classification & Workflow Architecture
+- **Standard Taxonomic Profiling:** Taxonomic classification for core diversity, relative abundance profiles (Phylum/Genus stacked barplots), LEfSe biomarker discovery, and metacoder hierarchical heat trees was executed against the standard **SILVA v. 138** reference database using the `classify-sklearn` algorithm.
+- **Targeted Custom Re-Classification (Reviewer Validation):** To address short-read length constraints (~150 bp single-end V3 reads) and resolve methodological concerns regarding family-level differential abundance, a custom Naive Bayes classifier was trained specifically for the amplified V3 region. Utilizing **RESCRIPT** and QIIME 2 against the **SILVA 138.2** database, reference sequences were extracted via `qiime feature-classifier extract-reads` according to experimental primer specifications, trained via `qiime feature-classifier fit-classifier-naive-bayes` (`silva-138.2-v3-150-classifier.qza`), and applied to re-classify representative ASVs (`taxa-v3-150.qza`). 
+- **Phylogeny:** Representative sequences were aligned using MAFFT, non-conserved positions were masked, and a midpoint-rooted phylogenetic tree was constructed using FastTree via `q2-phylogeny`:
 
 ```bash
 # Build de novo rooted phylogenetic tree
