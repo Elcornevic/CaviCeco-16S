@@ -45,21 +45,21 @@ CaviCeco-16S/
 │   │   ├── bray_curtis_distance_matrix.qza     # Bray-Curtis pairwise distance matrix artifact
 │   │   ├── bray_curtis_emperor.qzv             # Bray-Curtis PCoA Emperor ordination visualization
 │   │   ├── bray_curtis_pcoa_results.qza        # Bray-Curtis principal coordinates analysis artifact
-│   │   ├── evenness_vector.qza                 # 
-│   │   ├── jaccard_distance_matrix.qza         #
-│   │   ├── jaccard_emperor.qzv                 # 
-│   │   ├── jaccard_pcoa_results.qza            # 
-│   │   ├── observed_features_vector.qza        # 
-│   │   ├── rarefied_table.qza                  # 
-│   │   └── shannon_vector.qza                  # 
+│   │   ├── evenness_vector.qza                 # Pielou's evenness alpha diversity vector artifact
+│   │   ├── jaccard_distance_matrix.qza         # Jaccard pairwise distance matrix artifact
+│   │   ├── jaccard_emperor.qzv                 # Jaccard PCoA Emperor ordination visualization
+│   │   ├── jaccard_pcoa_results.qza            # Jaccard principal coordinates analysis artifact
+│   │   ├── observed_features_vector.qza        # Observed features alpha diversity vector artifact
+│   │   ├── rarefied_table.qza                  # Rarefied feature table artifact (15,000 reads/sample)
+│   │   └── shannon_vector.qza                  # Shannon diversity index vector artifact
 │   └── tree/                                   # Rooted and unrooted phylogenetic trees
-│   │   ├── alignment.qza                       # 
-│   │   ├── masked_alignment.qza                # 
-│   │   ├── rooted_tree.qza                     #
-│   │   └── tree.qza                            # 
+│   │   ├── alignment.qza                       # MAFFT multiple sequence alignment artifact
+│   │   ├── masked_alignment.qza                # Positional mask filtered alignment artifact
+│   │   ├── rooted_tree.qza                     # Rooted phylogenetic tree artifact
+│   │   └── tree.qza                            # Unrooted phylogenetic tree artifact
 ├── R_scripts/
 │   ├── Data_AnalysesCopro.Rmd                  # Primary end-to-end reproducible R Markdown notebook
-│   ├── Update_Taxonomy_and_ANCOMBC2.Rmd        # 
+│   ├── Update_Taxonomy_and_ANCOMBC2.Rmd        # R Markdown notebook for 150bp taxonomy integration and ANCOM-BC2 analysis
 │   ├── process_taxonomy_groups.R               # Per-sample normalization & cohort-mean summarization
 │   ├── taxa_to_heat_tree.R                     # Metacoder hierarchical differential heat-tree pipeline
 │   ├── generate_grouped_xlsx.R                 # Group-level taxonomic matrices generation script
@@ -69,36 +69,69 @@ CaviCeco-16S/
 ├── processed_data/
 │   ├── OTU_matrix.xlsx / .txt                  # Cleaned ASV count matrices across all 21 samples
 │   ├── Taxonomy_table.xlsx / .txt              # Resolved 7-rank taxonomic lineage assignments
-│   └── exported-taxonomy-v3-150/               # 
-│   │   └── taxonomy.tsv                        # 
+│   └── exported-taxonomy-v3-150/               # Directory containing raw exported files from custom 150bp taxonomy
+│   │   └── taxonomy.tsv                        # Raw tab-separated taxonomic assignment table from 150bp classifier
 │   └── taxa_phyloseq.csv                       # Formatted taxonomic table for phyloseq import
 ├── supplementary_files/
 │   ├── Supplementary Data S1                   # Complete phylum-level relative abundance matrix
 │   ├── Supplementary Data S2                   # Complete genus-level relative abundance matrix
 │   ├── Supplementary Data S3                   # Pairwise family-level Wilcoxon rank-sum test statistics
 │   ├── Supplementary Data S4                   # Family-level ANCOM-BC2 differential abundance models
-│   ├── Supplementary Data S4v2                 # 
+│   ├── Supplementary Data S4v2                 # Refined family-level ANCOM-BC2 differential abundance models using custom 150bp classifier
 │   ├── Supplementary Data S5                   # Metacoder node-level statistics across 245 taxa
-│   ├── Supplementary Figure S1                 # 
-│   ├── Supplementary Figure S2                 # 
-│   ├── Supplementary Figure S3                 # 
-│   ├── Supplementary Figure S4                 # 
-│   ├── Supplementary Figure S5                 # 
-│   ├── Supplementary Figure S6                 # 
-│   ├── Supplementary Figure S7                 # 
-│   └── Supplementary Figure S8                 # 
+│   ├── Supplementary Figure S1                 # Collar description and schematic workflow of experimental groups
+│   ├── Supplementary Figure S2                 # Per-base Quality Score Distribution (Forward Reads)
+│   ├── Supplementary Figure S3                 # Alpha diversity rarefaction curves demonstrating sequencing depth saturation
+│   ├── Supplementary Figure S4                 # Unweighted UniFrac beta diversity principal coordinates analysis (PCoA)
+│   ├── Supplementary Figure S5                 # Relative abundance of dominant phyla by individual sample
+│   ├── Supplementary Figure S6                 # Relative abundance of dominant genera by individual sample
+│   ├── Supplementary Figure S7                 # Linear Discriminant Analysis (LDA) effect size (LEfSe) score of discriminatory taxa
+│   └── Supplementary Figure S8                 # Metacoder hierarchical differential heat tree displaying taxonomic enrichment
 └── results_and_figures/                        
-    ├── Figure 1                                # Main workflow
-    ├── Figure 2                                # Alpha diversity plot
-    ├── Figure 3                                # Beta diversity plot
-    ├── Figure 4                                # Top 10 phyla relative abundance barplot
-    ├── Figure 5                                # Top 10-15 genera relative abundance barplot
-    └── Figure 6                                # Significant families boxplots
+    ├── Figure 1                                # Main workflow overview and experimental design schematic
+    ├── Figure 2                                # Alpha diversity metrics comparison across dietary groups
+    ├── Figure 3                                # Beta diversity principal coordinates analysis (PCoA) plots
+    ├── Figure 4                                # Top 10 phyla relative abundance composition barplot
+    ├── Figure 5                                # Top 10-15 genera relative abundance composition barplot
+    └── Figure 6                                # Relative abundance boxplots of significantly enriched family-level taxa
 ```
 
 ---
 
 ## ⚙️ Bioinformatic & Analytical Methodology
+
+graph TD
+    %% Styling
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000;
+    classDef qiime fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000;
+    classDef rscript fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000;
+    classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
+
+    A[Illumina MiSeq Single-End Reads <br> V3-V4 Region, ~150 bp]:::process --> B[QIIME 2 v2024.2 / v2025.10]:::qiime
+    
+    subgraph QIIME 2 Processing Pipeline
+        B --> C[DADA2 Denoising & Filtering <br> run_dada2.sh]:::qiime
+        B --> D[RESCRIPT Database Prep <br> SILVA 138.2 Full-Length]:::qiime
+        D --> E[Custom 150 bp In Silico PCR <br> extract-reads]:::qiime
+        E --> F[Classifier Training <br> fit-classifier-naive-bayes]:::qiime
+        C --> G[ASV Feature Table & Rep-Seqs]:::qiime
+        F --> H[Custom 150 bp Classifier <br> silva-138.2-v3-150-classifier.qza]:::qiime
+        G & H --> I[Taxonomic Classification <br> classify-sklearn & taxa-v3-150.qza]:::qiime
+        I --> J[Taxonomy Export <br> taxonomy.tsv]:::qiime
+        B --> K[Phylogenetic Tree Construction <br> run_tree.sh]:::qiime
+    end
+
+    J & K --> L[R Analytical Pipeline <br> Update_Taxonomy_and_ANCOMBC2.Rmd]:::rscript
+
+    subgraph R Statistical & Diversity Analysis
+        L --> M[Phyloseq Integration <br> Domain Filtering: Archaea/Eukaryota]:::rscript
+        M --> N[Alpha & Beta Diversity <br> Rarefaction: 15,000 reads/sample]:::rscript
+        M --> O[Differential Abundance <br> ANCOM-BC2 Family-Level Modeling]:::rscript
+    end
+
+    N & O --> P[Final Outputs & Deliverables]:::output
+    P --> Q[Updated Supplementary Data S4 <br> Supplementary_Data_S4.csv]:::output
+    P --> R[GitHub Reproducibility Repository <br> CaviCeco-16S]:::output
 
 ### 1. DADA2 Denoising & ASV Inference (QIIME 2 v2024.2)
 Raw single-end FASTQ reads were imported into QIIME 2. Sequence quality inspection, error rate modeling, dereplication, quality trimming, and consensus chimera removal were executed using `q2-dada2` with explicit parameterizations:
