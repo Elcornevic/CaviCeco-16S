@@ -27,43 +27,67 @@ All figures, statistical models, tables, and supplementary datasets in this repo
 ```text
 CaviCeco-16S/
 ├── metadata/
-│   ├── metadata.tsv                   # Comprehensive sample metadata & sequencing metrics
-│   ├── metadata.qzv                   # QIIME 2 metadata visualization artifact
-│   └── Samples.xlsx                   # Sample attributes, DNA yield, and library metrics
+│   ├── metadata.tsv                            # Comprehensive sample metadata & sequencing metrics
+│   ├── metadata.qzv                            # QIIME 2 metadata visualization artifact
+│   └── Samples.xlsx                            # Sample attributes, DNA yield, and library metrics
 ├── qiime2/
-│   ├── run_dada2.sh                   # DADA2 quality trimming, error learning & chimera filtering
-│   ├── run_tree.sh                    # MAFFT alignment, mask filtering & FastTree 2 phylogeny
-│   ├── SILVA138.2_SSURef_NR99_...     # Full-length Naive Bayes taxonomic classifier artifact
-│   ├── artifacts/                     # Core QIIME 2 artifacts (.qza) and visualizers (.qzv)
-│   │   ├── demux-single-end.qza       # Demultiplexed sequence artifact
-│   │   ├── table-dada2.qza            # Raw ASV abundance feature table
-│   │   ├── rep-seqs-dada2.qza         # Representative ASV sequences
-│   │   ├── stats-dada2.qza            # DADA2 sequence retention and filter statistics
-│   │   ├── taxa.qza                   # SILVA 138.2 taxonomic classifications
-│   │   └── filtered-table-genus.qza   # Agglomerated genus-level feature table
-│   ├── core-metrics-results/          # Rarefied alpha and beta diversity matrices (15,000 reads)
-│   └── tree/                          # Rooted and unrooted phylogenetic trees
+│   ├── run_dada2.sh                            # DADA2 quality trimming, error learning & chimera filtering
+│   ├── run_tree.sh                             # MAFFT alignment, mask filtering & FastTree 2 phylogeny
+│   ├── train_custom_classifier.sh              # Custom 150bp classifier training bash script
+│   ├── artifacts/                              # Core QIIME 2 artifacts (.qza) and visualizers (.qzv)
+│   │   ├── taxa-v3-150.qza                     # Custom 150bp taxonomic classification artifact
+│   │   ├── table-dada2.qza                     # Raw ASV abundance feature table
+│   │   ├── rep-seqs-dada2.qza                  # Representative ASV sequences
+│   │   ├── stats-dada2.qza                     # DADA2 sequence retention and filter statistics
+│   │   ├── taxa.qza                            # SILVA 138.2 taxonomic classifications
+│   │   └── filtered-table-genus.qza            # Agglomerated genus-level feature table
+│   ├── core-metrics-results/                   # Rarefied alpha and beta diversity matrices (15,000 reads)
+│   │   ├── bray_curtis_distance_matrix.qza     # 
+│   │   ├── bray_curtis_emperor.qzv             # 
+│   │   ├── bray_curtis_pcoa_results.qza        # 
+│   │   ├── evenness_vector.qza                 # 
+│   │   ├── jaccard_distance_matrix.qza         #
+│   │   ├── jaccard_emperor.qzv                 # 
+│   │   ├── jaccard_pcoa_results.qza            # 
+│   │   ├── observed_features_vector.qza        # 
+│   │   ├── rarefied_table.qza                  # 
+│   │   └── shannon_vector.qza                  # 
+│   └── tree/                                   # Rooted and unrooted phylogenetic trees
+│   │   ├── alignment.qza                       # 
+│   │   ├── masked_alignment.qza                # 
+│   │   ├── rooted_tree.qza                     #
+│   │   └── tree.qza                            # 
 ├── R_scripts/
-│   ├── Data_AnalysesCopro.Rmd         # Primary end-to-end reproducible R Markdown notebook
-│   ├── process_taxonomy_groups.R      # Per-sample normalization & cohort-mean summarization
-│   ├── taxa_to_heat_tree.R            # Metacoder hierarchical differential heat-tree pipeline
-│   ├── generate_grouped_xlsx.R        # Group-level taxonomic matrices generation script
-│   ├── generate_otu_xlsx.R            # ASV feature table export and formatting script
-│   ├── generate_samples_xlsx.R        # Sample-resolved proportion calculation script
-│   └── generate_taxonomy_xlsx.R       # SILVA taxonomic dictionary parser
+│   ├── Data_AnalysesCopro.Rmd                  # Primary end-to-end reproducible R Markdown notebook
+│   ├── Update_Taxonomy_and_ANCOMBC2.Rmd        # 
+│   ├── process_taxonomy_groups.R               # Per-sample normalization & cohort-mean summarization
+│   ├── taxa_to_heat_tree.R                     # Metacoder hierarchical differential heat-tree pipeline
+│   ├── generate_grouped_xlsx.R                 # Group-level taxonomic matrices generation script
+│   ├── generate_otu_xlsx.R                     # ASV feature table export and formatting script
+│   ├── generate_samples_xlsx.R                 # Sample-resolved proportion calculation script
+│   └── generate_taxonomy_xlsx.R                # SILVA taxonomic dictionary parser
 ├── processed_data/
-│   ├── OTU_matrix.xlsx / .txt         # Cleaned ASV count matrices across all 21 samples
-│   ├── Taxonomy_table.xlsx / .txt     # Resolved 7-rank taxonomic lineage assignments
-│   └── taxa_phyloseq.csv              # Formatted taxonomic table for phyloseq import
+│   ├── OTU_matrix.xlsx / .txt                  # Cleaned ASV count matrices across all 21 samples
+│   ├── Taxonomy_table.xlsx / .txt              # Resolved 7-rank taxonomic lineage assignments
+│   └── exported-taxonomy-v3-150/               # 
+│   │   └── taxonomy.tsv                        # 
+│   └── taxa_phyloseq.csv                       # Formatted taxonomic table for phyloseq import
 ├── supplementary_files/
-│   ├── Supplementary_Data_S1.xlsx     # Complete phylum-level relative abundance matrix
-│   ├── Supplementary_Data_S2.xlsx     # Complete genus-level relative abundance matrix
-│   ├── Supplementary_Data_S3.xlsx     # Pairwise family-level Wilcoxon rank-sum test statistics
-│   ├── Supplementary_Data_S4.xlsx     # Family-level ANCOM-BC2 differential abundance models
-│   ├── Supplementary_Data_S5.xlsx     # Metacoder node-level statistics across 245 taxa
-│   ├── Supplementary_Figure_S4.tiff   # Sample-resolved phylum barplots (Top 10 + Other)
-│   └── Supplementary_Figure_S5.tiff   # Sample-resolved genus barplots (Top 10 + Other)
-└── results_and_figures/               # Output directories containing all manuscript figures (1–12)
+│   ├── Supplementary Data S1                   # Complete phylum-level relative abundance matrix
+│   ├── Supplementary Data S2                   # Complete genus-level relative abundance matrix
+│   ├── Supplementary Data S3                   # Pairwise family-level Wilcoxon rank-sum test statistics
+│   ├── Supplementary Data S4                   # Family-level ANCOM-BC2 differential abundance models
+│   ├── Supplementary Data S4v2                 # 
+│   ├── Supplementary Data S5                   # Metacoder node-level statistics across 245 taxa
+│   ├── Supplementary Figure S1                 # 
+│   ├── Supplementary Figure S2                 # 
+│   ├── Supplementary Figure S3                 # 
+│   ├── Supplementary Figure S4                 # 
+│   ├── Supplementary Figure S5                 # 
+│   ├── Supplementary Figure S6                 # 
+│   ├── Supplementary Figure S7                 # 
+│   └── Supplementary Figure S8                 # 
+└── results_and_figures/                        # Output directories containing all manuscript figures (1–12)
 ```
 
 ---
