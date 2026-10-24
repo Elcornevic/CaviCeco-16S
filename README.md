@@ -42,9 +42,9 @@ CaviCeco-16S/
 │   │   ├── taxa.qza                            # SILVA 138.2 taxonomic classifications
 │   │   └── filtered-table-genus.qza            # Agglomerated genus-level feature table
 │   ├── core-metrics-results/                   # Rarefied alpha and beta diversity matrices (15,000 reads)
-│   │   ├── bray_curtis_distance_matrix.qza     # 
-│   │   ├── bray_curtis_emperor.qzv             # 
-│   │   ├── bray_curtis_pcoa_results.qza        # 
+│   │   ├── bray_curtis_distance_matrix.qza     # Bray-Curtis pairwise distance matrix artifact
+│   │   ├── bray_curtis_emperor.qzv             # Bray-Curtis PCoA Emperor ordination visualization
+│   │   ├── bray_curtis_pcoa_results.qza        # Bray-Curtis principal coordinates analysis artifact
 │   │   ├── evenness_vector.qza                 # 
 │   │   ├── jaccard_distance_matrix.qza         #
 │   │   ├── jaccard_emperor.qzv                 # 
@@ -87,7 +87,13 @@ CaviCeco-16S/
 │   ├── Supplementary Figure S6                 # 
 │   ├── Supplementary Figure S7                 # 
 │   └── Supplementary Figure S8                 # 
-└── results_and_figures/                        # Output directories containing all manuscript figures (1–12)
+└── results_and_figures/                        
+    ├── Figure 1                                # Main workflow
+    ├── Figure 2                                # Alpha diversity plot
+    ├── Figure 3                                # Beta diversity plot
+    ├── Figure 4                                # Top 10 phyla relative abundance barplot
+    ├── Figure 5                                # Top 10-15 genera relative abundance barplot
+    └── Figure 6                                # Significant families boxplots
 ```
 
 ---
