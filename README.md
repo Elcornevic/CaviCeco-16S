@@ -108,29 +108,35 @@ graph TD
     classDef rscript fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000;
     classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
 
-    A[Illumina MiSeq Single-End Reads <br> V3-V4 Region, ~150 bp]:::process --> B[QIIME 2 v2025.10]:::qiime
+    A[Illumina MiSeq Single-End Reads <br> V3 Region, ~150 bp]:::process --> B[QIIME 2 v2025.10 / v2024.2]:::qiime
     
-    subgraph QIIME 2 Processing Pipeline
+    subgraph QIIME 2 Core Processing Pipeline
         B --> C[DADA2 Denoising & Filtering <br> run_dada2.sh]:::qiime
-        B --> D[RESCRIPT Database Prep <br> SILVA 138.2 Full-Length]:::qiime
-        D --> E[Custom 150 bp In Silico PCR <br> extract-reads]:::qiime
-        E --> F[Classifier Training <br> fit-classifier-naive-bayes]:::qiime
-        C --> G[ASV Feature Table & Rep-Seqs]:::qiime
-        F --> H[Custom 150 bp Classifier <br> silva-138.2-v3-150-classifier.qza]:::qiime
-        G & H --> I[Taxonomic Classification <br> classify-sklearn & taxa-v3-150.qza]:::qiime
-        I --> J[Taxonomy Export <br> taxonomy.tsv]:::qiime
-        B --> K[Phylogenetic Tree Construction <br> run_tree.sh]:::qiime
+        B --> D[Phylogenetic Reconstruction <br> MAFFT & FastTree via run_tree.sh]:::qiime
+        C --> E[ASV Feature Table & Rep-Seqs <br> table-dada2.qza / rep-seqs-dada2.qza]:::qiime
     end
 
-    J & K --> L[R Analytical Pipeline <br> Update_Taxonomy_and_ANCOMBC2.Rmd]:::rscript
-
-    subgraph R Statistical & Diversity Analysis
-        L --> M[Phyloseq Integration <br> Domain Filtering: Archaea/Eukaryota]:::rscript
-        M --> N[Alpha & Beta Diversity <br> Rarefaction: 15,000 reads/sample]:::rscript
-        M --> O[Differential Abundance <br> ANCOM-BC2 Family-Level Modeling]:::rscript
+    subgraph Standard Taxonomic & Diversity Pipeline (General SILVA)
+        E --> F[Standard Taxonomic Classification <br> SILVA v.138 Reference Database]:::qiime
+        F --> G[Global Downstream R Analyses <br> Alpha/Beta Diversity, LEfSe, Heat Trees]:::rscript
     end
 
-    N & O --> P[Final Outputs & Deliverables]:::output
+    subgraph Custom 150 bp Retraining Pipeline for ANCOM-BC2 Reviewer Response
+        B --> H[RESCRIPT Database Prep <br> SILVA 138.2 Full-Length Reference]:::qiime
+        H --> I[Custom In Silico PCR <br> extract-reads for ~150 bp V3]:::qiime
+        I --> J[Classifier Training <br> fit-classifier-naive-bayes]:::qiime
+        E & J --> K[Targeted Re-Classification <br> classify-sklearn & taxa-v3-150.qza]:::qiime
+        K --> L[Taxonomy Export <br> exported-taxonomy-v3-150/taxonomy.tsv]:::qiime
+    end
+
+    G & L --> M[R Statistical Integration & Validation]:::rscript
+
+    subgraph Final R Integration Workflow
+        M --> N[Phyloseq Object Update <br> Domain Filtering: Archaea/Eukaryota]:::rscript
+        N --> O[Compositionally Aware Re-Analysis <br> ANCOM-BC2 Family-Level Modeling]:::rscript
+    end
+
+    O --> P[Final Outputs & Repository Delivery]:::output
     P --> Q[Updated Supplementary Data S4 <br> Supplementary_Data_S4.csv]:::output
     P --> R[GitHub Reproducibility Repository <br> CaviCeco-16S]:::output
 ```
