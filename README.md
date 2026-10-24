@@ -108,7 +108,7 @@ graph TD
     classDef rscript fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000;
     classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
 
-    A[Illumina MiSeq Single-End Reads <br> V3-V4 Region, ~150 bp]:::process --> B[QIIME 2 v2024.2 / v2025.10]:::qiime
+    A[Illumina MiSeq Single-End Reads <br> V3-V4 Region, ~150 bp]:::process --> B[QIIME 2 v2025.10]:::qiime
     
     subgraph QIIME 2 Processing Pipeline
         B --> C[DADA2 Denoising & Filtering <br> run_dada2.sh]:::qiime
