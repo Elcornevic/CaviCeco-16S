@@ -100,6 +100,7 @@ CaviCeco-16S/
 
 ## ⚙️ Bioinformatic & Analytical Methodology
 
+```mermaid
 graph TD
     %% Styling
     classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000;
@@ -132,6 +133,7 @@ graph TD
     N & O --> P[Final Outputs & Deliverables]:::output
     P --> Q[Updated Supplementary Data S4 <br> Supplementary_Data_S4.csv]:::output
     P --> R[GitHub Reproducibility Repository <br> CaviCeco-16S]:::output
+```
 
 ### 1. DADA2 Denoising & ASV Inference (QIIME 2 v2024.2)
 Raw single-end FASTQ reads were imported into QIIME 2. Sequence quality inspection, error rate modeling, dereplication, quality trimming, and consensus chimera removal were executed using `q2-dada2` with explicit parameterizations:
