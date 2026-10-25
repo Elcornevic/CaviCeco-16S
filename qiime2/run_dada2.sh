@@ -7,10 +7,10 @@
 #SBATCH -o dada2_out_%j.log
 #SBATCH -e dada2_err_%j.log
 
-# 1. Cargar el módulo de QIIME2 directo
+# 1. Load the QIIME2 module directly
 module load QIIME2/2025.10
 
-# 2. Ejecutar el proceso de Denoising con DADA2
+# 2. Run the Denoising process with DADA2
 qiime dada2 denoise-single \
   --i-demultiplexed-seqs demux-single-end.qza \
   --p-trim-left 0 \
@@ -21,4 +21,4 @@ qiime dada2 denoise-single \
   --o-denoising-stats stats-dada2.qza \
   --o-base-transition-stats transition-stats-dada2.qza
 
-echo "¡Proceso DADA2 finalizado con éxito!"
+echo "DADA2 process successfully finished!"
