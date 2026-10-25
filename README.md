@@ -1,7 +1,7 @@
 # CaviCeco-16S: Cecal Microbiota Dynamics Under Cecotrophy Prevention in *Cavia porcellus*
 
 [![NCBI BioProject](https://img.shields.io/badge/NCBI_BioProject-PRJNA1480827-0071bc.svg)](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA1480827)
-[![QIIME 2](https://img.shields.io/badge/QIIME_2-2024.2-2b6cb0.svg)](https://qiime2.org/)
+[![QIIME 2](https://img.shields.io/badge/QIIME_2-2025.10-2b6cb0.svg)](https://qiime2.org/)
 [![R Version](https://img.shields.io/badge/R-%E2%89%A54.3-blue.svg)](https://www.r-project.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -119,7 +119,7 @@ graph TD
     classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
     classDef sensitivity fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000;
 
-    A["Illumina MiSeq Single-End Reads<br>(V3 Region, ~150 bp)"]:::process --> B["QIIME 2 v2025.10 / v2024.2"]:::qiime
+    A["Illumina MiSeq Single-End Reads<br>(V3 Region, ~150 bp)"]:::process --> B["QIIME 2 v2025.10"]:::qiime
     
     subgraph QIIME2_Core ["QIIME 2 Core Processing Pipeline"]
         B --> C["DADA2 Denoising & Filtering<br>(run_dada2.sh)"]:::qiime
@@ -163,7 +163,7 @@ graph TD
     P --> R["GitHub Reproducibility Repository<br>(CaviCeco-16S with /sensitivity folder)"]:::output
 ```
 
-### 1. DADA2 Denoising & ASV Inference (QIIME 2 v2024.2)
+### 1. DADA2 Denoising & ASV Inference (QIIME 2 v2025.10)
 Raw single-end FASTQ reads were imported into QIIME 2. Sequence quality inspection, error rate modeling, dereplication, quality trimming, and consensus chimera removal were executed using `q2-dada2` with explicit parameterizations:
 
 ```bash
@@ -257,7 +257,7 @@ All statistical models were executed in R with computational determinism (`set.s
 
 ## 📦 Computational Environment & Software Dependencies
 
-### QIIME 2 (v2024.2) Core Plugins
+### QIIME 2 (v2025.10) Core Plugins
 * `q2cli`
 * `q2-dada2`
 * `q2-feature-classifier`
