@@ -34,6 +34,7 @@ CaviCeco-16S/
 │   ├── run_dada2.sh                            # DADA2 quality trimming, error learning & chimera filtering
 │   ├── run_tree.sh                             # MAFFT alignment, mask filtering & FastTree 2 phylogeny
 │   ├── train_custom_classifier.sh              # Custom 150bp classifier training bash script
+│   ├── run_sensitivity_R2.sh                   # UPPMAX shell script for single-end R2 DADA2 processing & custom V4 classification
 │   ├── artifacts/                              # Core QIIME 2 artifacts (.qza) and visualizers (.qzv)
 │   │   ├── taxa-v3-150.qza                     # Custom 150bp taxonomic classification artifact
 │   │   ├── table-dada2.qza                     # Raw ASV abundance feature table
@@ -57,9 +58,18 @@ CaviCeco-16S/
 │   │   ├── masked_alignment.qza                # Positional mask filtered alignment artifact
 │   │   ├── rooted_tree.qza                     # Rooted phylogenetic tree artifact
 │   │   └── tree.qza                            # Unrooted phylogenetic tree artifact
+│   └── sensitivity/                            # Artifacts and outputs for R2 sensitivity checks
+│       ├── base-transition-stats-r2.qza        # DADA2 transition statistics artifact for R2 single-end reads
+│       ├── ref-seqs-v4-150.qza                 # Reference sequences used for the custom V4 150bp classifier
+│       ├── rep-seqs-v4-rep-seqs.qza            # Representative sequences artifact derived from the R2 workflow
+│       ├── silva-138.2-v4-150-classifier.qza   # Pre-trained custom Naive Bayes classifier based on SILVA 138.2 for V4 150bp reads
+│       ├── stats-dada2-r2.qza                  # DADA2 filtering and denoising statistics for R2 reads
+│       ├── table-dada2-r2.qza                  # DADA2 denoised ASV abundance feature table derived from R2 reads
+│       └── taxa-v4-150.qza                     # Taxonomic classification artifact generated using the custom V4 classifier
 ├── R_scripts/
 │   ├── Data_AnalysesCopro.Rmd                  # Primary end-to-end reproducible R Markdown notebook
 │   ├── Update_Taxonomy_and_ANCOMBC2.Rmd        # R Markdown notebook for 150bp taxonomy integration and ANCOM-BC2 analysis
+│   ├── sensitivity_analysis_r2.Rmd             # Reproducible R Markdown notebook for R2 single-end sensitivity analysis
 │   ├── process_taxonomy_groups.R               # Per-sample normalization & cohort-mean summarization
 │   ├── taxa_to_heat_tree.R                     # Metacoder hierarchical differential heat-tree pipeline
 │   ├── generate_grouped_xlsx.R                 # Group-level taxonomic matrices generation script
@@ -107,6 +117,7 @@ graph TD
     classDef qiime fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000;
     classDef rscript fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000;
     classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
+    classDef sensitivity fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000;
 
     A["Illumina MiSeq Single-End Reads<br>(V3 Region, ~150 bp)"]:::process --> B["QIIME 2 v2025.10 / v2024.2"]:::qiime
     
@@ -131,6 +142,13 @@ graph TD
         K --> L["Taxonomy Export<br>(taxonomy.tsv)"]:::qiime
     end
 
+    subgraph Sensitivity_Pipeline ["R2 Sensitivity Pipeline (Reviewer Request)"]
+        S1["Illumina MiSeq Single-End R2 Reads<br>(V4 Region, ~150 bp)"]:::sensitivity --> S2["DADA2 Denoising for R2<br>(table-dada2-r2.qza)"]:::sensitivity
+        S2 --> S3["Custom V4 Classifier Training<br>(silva-138.2-v4-150-classifier.qza)"]:::sensitivity
+        S3 --> S4["R2 Taxonomic Classification<br>(taxa-v4-150.qza)"]:::sensitivity
+        S4 --> S5["R2 Phyloseq Object & Alpha/ANCOM-BC2<br>(sensitivity_analysis_r2.Rmd)"]:::sensitivity
+    end
+
     G --> M["R Statistical Integration"]:::rscript
     L --> M
     
@@ -140,8 +158,9 @@ graph TD
     end
 
     O --> P["Final Outputs & Repository Delivery"]:::output
+    S5 --> P
     P --> Q["Updated Supplementary Data S4<br>(Supplementary_Data_S4.csv)"]:::output
-    P --> R["GitHub Reproducibility Repository<br>(CaviCeco-16S)"]:::output
+    P --> R["GitHub Reproducibility Repository<br>(CaviCeco-16S with /sensitivity folder)"]:::output
 ```
 
 ### 1. DADA2 Denoising & ASV Inference (QIIME 2 v2024.2)
