@@ -142,7 +142,7 @@ graph TD
         K --> L["Taxonomy Export<br>(taxonomy.tsv)"]:::qiime
     end
 
-    subgraph Sensitivity_Pipeline ["R2 Sensitivity Pipeline (Reviewer Request)"]
+    subgraph Sensitivity_Pipeline ["R2 Sensitivity Pipeline"]
         S1["Illumina MiSeq Single-End R2 Reads<br>(V4 Region, ~150 bp)"]:::sensitivity --> S2["DADA2 Denoising for R2<br>(table-dada2-r2.qza)"]:::sensitivity
         S2 --> S3["Custom V4 Classifier Training<br>(silva-138.2-v4-150-classifier.qza)"]:::sensitivity
         S3 --> S4["R2 Taxonomic Classification<br>(taxa-v4-150.qza)"]:::sensitivity
@@ -173,7 +173,7 @@ bash qiime2/run_dada2.sh
 
 ### 2. Taxonomic Classification & Workflow Architecture
 - **Standard Taxonomic Profiling:** Taxonomic classification for core diversity, relative abundance profiles (Phylum/Genus stacked barplots), LEfSe biomarker discovery, and metacoder hierarchical heat trees was executed against the standard **SILVA v. 138** reference database using the `classify-sklearn` algorithm.
-- **Targeted Custom Re-Classification (Reviewer Validation):** To address short-read length constraints (~150 bp single-end V3 reads) and resolve methodological concerns regarding family-level differential abundance, a custom Naive Bayes classifier was trained specifically for the amplified V3 region. Utilizing **RESCRIPT** and QIIME 2 against the **SILVA 138.2** database, reference sequences were extracted via `qiime feature-classifier extract-reads` according to experimental primer specifications, trained via `qiime feature-classifier fit-classifier-naive-bayes` (`silva-138.2-v3-150-classifier.qza`), and applied to re-classify representative ASVs (`taxa-v3-150.qza`). 
+- **Targeted Custom Re-Classification:** To address short-read length constraints (~150 bp single-end V3 reads) and resolve methodological concerns regarding family-level differential abundance, a custom Naive Bayes classifier was trained specifically for the amplified V3 region. Utilizing **RESCRIPT** and QIIME 2 against the **SILVA 138.2** database, reference sequences were extracted via `qiime feature-classifier extract-reads` according to experimental primer specifications, trained via `qiime feature-classifier fit-classifier-naive-bayes` (`silva-138.2-v3-150-classifier.qza`), and applied to re-classify representative ASVs (`taxa-v3-150.qza`). 
 - **Phylogeny:** Representative sequences were aligned using MAFFT, non-conserved positions were masked, and a midpoint-rooted phylogenetic tree was constructed using FastTree via `q2-phylogeny`:
 
 ```bash
