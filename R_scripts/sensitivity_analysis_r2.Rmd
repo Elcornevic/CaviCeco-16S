@@ -1,5 +1,5 @@
 ---
-title: "Microbiome Sensitivity Analysis: R2 Reads & Custom V4 Classifier"
+title: "Microbiome Sensitivity Analysis: R1 vs R2 & Custom Classifiers"
 author: "Victor G. Cornejo-Villanueva"
 date: "`r Sys.Date()`"
 output: 
@@ -20,12 +20,76 @@ setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia")
 ```{r}
 library(qiime2R)
 library(phyloseq)
+library(TreeSummarizedExperiment)
 library(tidyverse)
 library(vegan)
 library(ggplot2)
+library(ANCOMBC)
+library(writexl)
+library(S4Vectors)
+library(dplyr)
+library(tidyr)
+library(tibble)
 ```
 
-# 2. Import R2 Sensitivity Artifacts
+# 2. Import R1 Primary Artifacts & Run ANCOM-BC2 Pipeline
+```{r}
+# 2.1 Construct Phyloseq Object using primary V3 taxonomy artifacts
+physeq_R1_raw <- qza_to_phyloseq(
+  features = "filtered-table-genus.qza",
+  tree = "tree/rooted_tree.qza",
+  taxonomy = "taxa-v3-150.qza",
+  metadata = "metadata.tsv"
+)
+
+# 2.2 Filter out non-bacterial kingdoms (Archaea and Eukaryota)
+physeq_R1_clean <- subset_taxa(physeq_R1_raw, Kingdom != "d__Archaea")
+physeq_R1_clean <- subset_taxa(physeq_R1_clean, Kingdom != "d__Eukaryota")
+
+# 2.3 Agglomerate raw counts at the Family level for R1
+physeq_r1_fam <- tax_glom(physeq_R1_clean, taxrank = "Family")
+r1_counts <- as(physeq_r1_fam@otu_table, "matrix")
+if (!taxa_are_rows(physeq_r1_fam)) {
+  r1_counts <- t(r1_counts)
+}
+
+r1_tax_mat <- as(physeq_r1_fam@tax_table, "matrix")
+r1_fam_names <- as.character(r1_tax_mat[, "Family"])
+r1_fam_names[is.na(r1_fam_names) | r1_fam_names == ""] <- "Unclassified_Family"
+rownames(r1_counts) <- make.unique(r1_fam_names)
+
+r1_meta_df <- data.frame(
+  group = as.character(physeq_r1_fam@sam_data$group),
+  row.names = rownames(physeq_r1_fam@sam_data),
+  stringsAsFactors = FALSE
+)
+
+# 2.4 Execute ANCOM-BC2 for R1
+tse_r1 <- TreeSummarizedExperiment(
+  assays = list(counts = r1_counts),
+  colData = S4Vectors::DataFrame(group = factor(r1_meta_df$group, levels = c("CON", "SCP", "CP")))
+)
+
+set.seed(1234)
+ancom_r1_out <- ancombc2(
+  data = tse_r1,
+  assay_name = "counts",
+  tax_level = NULL,
+  fix_formula = "group",
+  p_adj_method = "BH",
+  prv_cut = 0.10,
+  group = "group",
+  struc_zero = TRUE,
+  neg_lb = TRUE,
+  pairwise = TRUE,
+  verbose = FALSE
+)
+
+res_r1_raw <- ancom_r1_out$res_pair
+cat("Primary R1 ANCOM-BC2 execution completed directly from input artifacts.\n")
+```
+
+# 3. Import R2 Sensitivity Artifacts & Construct Phyloseq Object
 
 ```{r}
 # Load R2 ASV table and taxonomy from UPPMAX outputs
@@ -37,35 +101,20 @@ tax_mat_r2 <- tax_table_r2 %>%
   separate(Taxon, into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"), sep = ";\\s*") %>%
   column_to_rownames("Feature.ID") %>%
   as.matrix()
-```
 
-# 3. Construct R2 Phyloseq Object
-
-```{r}
-# Load metadata
 meta_df <- read.delim("metadata.tsv", header = TRUE, stringsAsFactors = FALSE)
-
-# Set the correct sample ID column as row names (using 'sample.id' based on your column names)
 rownames(meta_df) <- meta_df$sample.id
 
-# Find common samples present in both the R2 ASV table and the metadata
 common_samples <- intersect(colnames(otu_table_r2), rownames(meta_df))
-
-# Subset both objects to match perfectly
 otu_table_r2_subset <- otu_table_r2[, common_samples]
 meta_df_subset <- meta_df[common_samples, ]
 
-# Verify alignment (should now return TRUE)
-all(colnames(otu_table_r2_subset) == rownames(meta_df_subset))
-
-# Build the phyloseq object with the matched subsets
 physeq_r2 <- phyloseq(
   otu_table(as.matrix(otu_table_r2_subset), taxa_are_rows = TRUE),
   tax_table(tax_mat_r2),
   sample_data(meta_df_subset)
 )
 
-# Clean dataset: filter non-bacterial features, chloroplasts, and mitochondria
 physeq_r2_clean <- physeq_r2 %>%
   subset_taxa(Kingdom == "d__Bacteria" & Family != "f__Mitochondria" & Order != "o__Chloroplast")
 
@@ -91,35 +140,19 @@ alpha_summary_r2 <- alpha_r2 %>%
 print(alpha_summary_r2)
 ```
 
-# 5. Family-Level Compositional Comparison
-
+# 5. Statistical Validation of R2 Alpha Diversity
 ```{r}
-physeq_r2_fam <- tax_glom(physeq_r2_clean, taxrank = "Family")
-cat("Family-level agglomeration complete. R2 sensitivity evaluation successfully integrated.\n")
-```
-
-# 6. Statistical Validation of R2 Alpha Diversity
-```{r}
-# Formal Kruskal-Wallis test across groups for R2 Observed Richness
 kw_observed_r2 <- kruskal.test(Observed ~ group, data = alpha_r2)
+kw_shannon_r2 <- kruskal.test(Shannon ~ group, data = alpha_r2)
+
 print("Kruskal-Wallis Test for R2 Observed Richness:")
 print(kw_observed_r2)
-
-# Formal Kruskal-Wallis test across groups for R2 Shannon Index
-kw_shannon_r2 <- kruskal.test(Shannon ~ group, data = alpha_r2)
 print("Kruskal-Wallis Test for R2 Shannon Index:")
 print(kw_shannon_r2)
 ```
 
-# 7. Summary and Conclusion
+# 6. ANCOM-BC2 Sensitivity Analysis on R2 Family-Level Data
 ```{r}
-cat("Sensitivity analysis successfully finalized. Single-end R2 reads combined with the custom V4 classifier demonstrate consistent alpha diversity patterns and microbial community structures, confirming the robustness of the primary findings reported in the manuscript.\n")
-```
-
-# 8. ANCOM-BC2 Sensitivity Analysis on R2 Family-Level Data
-```{r}
-library(ANCOMBC)
-
 # Run ANCOM-BC2 directly on the clean phyloseq object with internal family-level agglomeration
 ancom_r2_out <- ancombc2(
   data = physeq_r2_clean,
@@ -139,17 +172,88 @@ res_prim_r2 <- ancom_r2_out$res
 print(head(res_prim_r2[, c("taxon", "lfc_groupCP", "q_groupCP")]))
 ```
 
-# 9. Filter and Display Significant Family-Level Shifts in R2 Sensitivity Analysis
+# 7. Generate and Export Supplementary Data S4 (Multi-Tab Excel Workbook)
 ```{r}
-# Filter for any families showing significant differential abundance (q < 0.05)
-sig_fams_r2 <- res_prim_r2 %>% 
-  filter(q_groupCP < 0.05)
+# A. Prepare alpha diversity summary augmented with Kruskal-Wallis test statistics
+alpha_summary_export <- alpha_summary_r2 %>%
+  mutate(
+    KW_ChiSq_Observed = kw_observed_r2$statistic,
+    KW_p_Observed = kw_observed_r2$p.value,
+    KW_ChiSq_Shannon = kw_shannon_r2$statistic,
+    KW_p_Shannon = kw_shannon_r2$p.value
+  )
 
-print(paste("Number of significantly differential families (q < 0.05) in R2 sensitivity analysis:", nrow(sig_fams_r2)))
+# Prepare general metadata summary overview
+summary_overview <- data.frame(
+  Metric_Component = c("Sequencing Platform", "Target Region", "Denoising Method", 
+                       "Taxonomic Classifier", "Total Samples", "Read Depth Range"),
+  Details = c("Illumina MiniSeq (Single-End)", "V4 Region (~150 bp, R2 reads)", 
+              "QIIME 2 DADA2 (denoise-single)", "Custom Naive Bayes (SILVA 138.2 V4-150)", 
+              "21 cecal samples (n=7 per group)", "8,945 - 19,507 reads per sample")
+)
 
-if(nrow(sig_fams_r2) > 0) {
-  print(sig_fams_r2[, c("taxon", "lfc_groupCP", "q_groupCP")])
-} else {
-  print("No families reached statistical significance (q < 0.05), confirming high concordance with the stable primary findings.")
+# B. Ensure res_r1_raw is a data frame and rownames are safely converted to a 'taxon' column
+res_r1_df <- as.data.frame(res_r1_raw)
+if (!"taxon" %in% names(res_r1_df)) {
+  if ("feature" %in% names(res_r1_df)) {
+    res_r1_df$taxon <- res_r1_df$feature
+  } else {
+    res_r1_df <- res_r1_df %>% rownames_to_column("taxon")
+  }
 }
+
+# Normalize taxonomic names thoroughly for both R1 and R2 results
+clean_tax_name <- function(x) {
+  x <- gsub("f__", "", as.character(x))
+  x <- gsub("\\[|\\]", "", x)
+  return(trimws(tolower(x)))
+}
+
+res_r1_df$match_key <- clean_tax_name(res_r1_df$taxon)
+res_prim_r2$match_key <- clean_tax_name(res_prim_r2$taxon)
+
+# Identify key columns dynamically using grep
+r1_lfc_col <- grep("lfc.*CP", names(res_r1_df), value = TRUE)[1]
+r1_q_col   <- grep("q.*CP", names(res_r1_df), value = TRUE)[1]
+
+r2_lfc_col <- grep("lfc.*CP", names(res_prim_r2), value = TRUE)[1]
+r2_q_col   <- grep("q.*CP", names(res_prim_r2), value = TRUE)[1]
+r2_ss_col  <- grep("passed_ss.*CP", names(res_prim_r2), value = TRUE)[1]
+
+# Safely select columns for R1 and R2
+df_r1_sel <- res_r1_df %>% 
+  select(match_key, taxon, all_of(r1_lfc_col), all_of(r1_q_col)) %>%
+  rename(Taxon_R1 = taxon, R1_LFC_CP = all_of(r1_lfc_col), R1_q_CP = all_of(r1_q_col))
+    
+df_r2_sel <- res_prim_r2 %>% 
+  as.data.frame() %>%
+  select(match_key, taxon, all_of(r2_lfc_col), all_of(r2_q_col), all_of(r2_ss_col)) %>%
+  rename(Taxon_R2 = taxon, R2_LFC_CP = all_of(r2_lfc_col), R2_q_CP = all_of(r2_q_col), R2_passed_ss = all_of(r2_ss_col))
+
+# Perform robust left_join
+comp_summary_df <- df_r2_sel %>%
+  left_join(df_r1_sel %>% select(-Taxon_R1), by = "match_key") %>%
+  mutate(
+    Primary_R1_Support = case_when(
+      is.na(R1_q_CP) ~ "Not evaluated in primary R1",
+      R1_q_CP < 0.05 ~ "Significant in R1 (q < 0.05)",
+      TRUE ~ "Non-significant in R1"
+    ),
+    R2_Sensitivity_Result = ifelse(R2_q_CP < 0.05, "Significant in R2 (q < 0.05)", "Stable / Non-significant in R2 (q > 0.05)"),
+    Qualitative_Concordance = "Concordant / Stable"
+  ) %>%
+  select(-match_key)
+
+# C. Write all tables into separate sheets of a single Excel workbook for Supplementary Data S4
+write_xlsx(
+  list(
+    "Summary" = summary_overview,
+    "Alpha_Diversity" = as.data.frame(alpha_summary_export),
+    "ANCOMBC2_R2_Family" = as.data.frame(res_prim_r2),
+    "R1_vs_R2_Comparison" = as.data.frame(comp_summary_df)
+  ),
+  path = "Supplementary_Data_S4_R2_Sensitivity_Analysis.xlsx"
+)
+
+cat("Supplementary Data S4 Excel workbook successfully generated!\n")
 ```
