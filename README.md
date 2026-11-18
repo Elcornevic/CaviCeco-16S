@@ -35,6 +35,7 @@ CaviCeco-16S/
 │   ├── run_tree.sh                             # MAFFT alignment, mask filtering & FastTree 2 phylogeny
 │   ├── train_custom_classifier.sh              # Custom 150bp classifier training bash script
 │   ├── run_sensitivity_R2.sh                   # UPPMAX shell script for single-end R2 DADA2 processing & custom V4 classification
+│   ├── run_dada2_with_cutadapt.sh              # UPPMAX shell script for explicit cutadapt trimming & sensitivity workflow
 │   ├── artifacts/                              # Core QIIME 2 artifacts (.qza) and visualizers (.qzv)
 │   │   ├── taxa-v3-150.qza                     # Custom 150bp taxonomic classification artifact
 │   │   ├── table-dada2.qza                     # Raw ASV abundance feature table
@@ -70,6 +71,7 @@ CaviCeco-16S/
 │   ├── Data_AnalysesCopro.Rmd                  # Primary end-to-end reproducible R Markdown notebook
 │   ├── Update_Taxonomy_and_ANCOMBC2.Rmd        # R Markdown notebook for 150bp taxonomy integration and ANCOM-BC2 analysis
 │   ├── sensitivity_analysis_r2.Rmd             # Reproducible R Markdown notebook for R2 single-end sensitivity analysis
+│   ├── preprocessing_sensitivity_primers.Rmd   # Reproducible R Markdown notebook for explicit cutadapt sensitivity analysis
 │   ├── process_taxonomy_groups.R               # Per-sample normalization & cohort-mean summarization
 │   ├── taxa_to_heat_tree.R                     # Metacoder hierarchical differential heat-tree pipeline
 │   ├── generate_grouped_xlsx.R                 # Group-level taxonomic matrices generation script
@@ -83,12 +85,14 @@ CaviCeco-16S/
 │   │   └── taxonomy.tsv                        # Raw tab-separated taxonomic assignment table from 150bp classifier
 │   └── taxa_phyloseq.csv                       # Formatted taxonomic table for phyloseq import
 ├── supplementary_files/
-│   ├── Supplementary Data S1                   # Complete phylum-level relative abundance matrix
-│   ├── Supplementary Data S2                   # Complete genus-level relative abundance matrix
-│   ├── Supplementary Data S3                   # Pairwise family-level Wilcoxon rank-sum test statistics
-│   ├── Supplementary Data S4                   # Family-level ANCOM-BC2 differential abundance models
-│   ├── Supplementary Data S4v2                 # Refined family-level ANCOM-BC2 differential abundance models using custom 150bp classifier
-│   ├── Supplementary Data S5                   # Metacoder node-level statistics across 245 taxa
+│   ├── Supplementary Data S1.xlsx              # Preprocessing sensitivity analysis multi-sheet workbook (Cutadapt vs Untrimmed)
+│   ├── Supplementary Data S2.xlsx              # Family-level descriptive statistics
+│   ├── Supplementary Data S3.csv               # ANCOMBC2 family pairwise results (including custom 150bp classifier refinements)
+│   ├── Supplementary Data S4.xlsx              # Animal performance records (body-weight and daily feeding)
+│   ├── Supplementary Data S5.xlsx              # R2 single-end sensitivity analysis workbook
+│   ├── Supplementary Data S6.csv               # Phylum-level relative abundance summary matrix
+│   ├── Supplementary Data S7.csv               # Genus-level relative abundance summary matrix
+│   ├── Supplementary Data S8.csv               # Metacoder hierarchical differential heat tree statistics
 │   ├── Supplementary Figure S1                 # Collar description and schematic workflow of experimental groups
 │   ├── Supplementary Figure S2                 # Per-base Quality Score Distribution (Forward Reads)
 │   ├── Supplementary Figure S3                 # Alpha diversity rarefaction curves demonstrating sequencing depth saturation
@@ -132,6 +136,13 @@ graph TD
         F --> G["Global Downstream R Analyses<br>(Alpha/Beta Diversity, LEfSe, Heat Trees)"]:::rscript
     end
 
+    subgraph Cutadapt_Sensitivity ["Cutadapt Preprocessing Sensitivity Pipeline"]
+        CS1["Raw Reads"]:::sensitivity --> CS2["Explicit Primer Trimming<br>(cutadapt v5.1)"]:::sensitivity
+        CS2 --> CS3["Denoising & Tree Generation<br>(UPPMAX DADA2 & Tree scripts)"]:::sensitivity
+        CS3 --> CS4["Trimmed Artifacts Export<br>(filtered-table-genus-trimmed.qza)"]:::sensitivity
+        CS4 --> CS5["R Markdown Sensitivity Integration<br>(Alpha, PERMANOVA, ANCOM-BC2)"]:::sensitivity
+    end
+
     subgraph Custom_Classifier ["Custom 150 bp Retraining Pipeline (ANCOM-BC2)"]
         B --> H["RESCRIPT Database Prep<br>(SILVA 138.2 Full-Length Reference)"]:::qiime
         H --> I["Custom In Silico PCR<br>(extract-reads for ~150 bp)"]:::qiime
@@ -151,6 +162,7 @@ graph TD
 
     G --> M["R Statistical Integration"]:::rscript
     L --> M
+    CS5 --> M
     
     subgraph Final_Integration ["Final R Integration Workflow"]
         M --> N["Phyloseq Object Update<br>(Domain Filtering: Archaea/Eukaryota)"]:::rscript
@@ -159,7 +171,7 @@ graph TD
 
     O --> P["Final Outputs & Repository Delivery"]:::output
     S5 --> P
-    P --> Q["Updated Supplementary Data S4<br>(Supplementary_Data_S4.csv)"]:::output
+    P --> Q["Updated Supplementary Data<br>(Supplementary Data S1 Workbook)"]:::output
     P --> R["GitHub Reproducibility Repository<br>(CaviCeco-16S with /sensitivity folder)"]:::output
 ```
 
