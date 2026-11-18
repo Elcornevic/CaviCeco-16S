@@ -119,7 +119,7 @@ graph TD
     classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000;
     classDef sensitivity fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000;
 
-    A["Illumina MiSeq Single-End Reads<br>(V3 Region, ~150 bp)"]:::process --> B["QIIME 2 v2025.10"]:::qiime
+    A["Illumina MiSeq Single-End Reads<br>(~150 bp)"]:::process --> B["QIIME 2 v2025.10"]:::qiime
     
     subgraph QIIME2_Core ["QIIME 2 Core Processing Pipeline"]
         B --> C["DADA2 Denoising & Filtering<br>(run_dada2.sh)"]:::qiime
@@ -134,7 +134,7 @@ graph TD
 
     subgraph Custom_Classifier ["Custom 150 bp Retraining Pipeline (ANCOM-BC2)"]
         B --> H["RESCRIPT Database Prep<br>(SILVA 138.2 Full-Length Reference)"]:::qiime
-        H --> I["Custom In Silico PCR<br>(extract-reads for ~150 bp V3)"]:::qiime
+        H --> I["Custom In Silico PCR<br>(extract-reads for ~150 bp)"]:::qiime
         I --> J["Classifier Training<br>(fit-classifier-naive-bayes)"]:::qiime
         E --> K1["Feature Table"]:::qiime
         J --> K2["Trained Classifier"]:::qiime
@@ -173,7 +173,7 @@ bash qiime2/run_dada2.sh
 
 ### 2. Taxonomic Classification & Workflow Architecture
 - **Standard Taxonomic Profiling:** Taxonomic classification for core diversity, relative abundance profiles (Phylum/Genus stacked barplots), LEfSe biomarker discovery, and metacoder hierarchical heat trees was executed against the standard **SILVA v. 138** reference database using the `classify-sklearn` algorithm.
-- **Targeted Custom Re-Classification:** To address short-read length constraints (~150 bp single-end V3 reads) and resolve methodological concerns regarding family-level differential abundance, a custom Naive Bayes classifier was trained specifically for the amplified V3 region. Utilizing **RESCRIPT** and QIIME 2 against the **SILVA 138.2** database, reference sequences were extracted via `qiime feature-classifier extract-reads` according to experimental primer specifications, trained via `qiime feature-classifier fit-classifier-naive-bayes` (`silva-138.2-v3-150-classifier.qza`), and applied to re-classify representative ASVs (`taxa-v3-150.qza`). 
+- **Targeted Custom Re-Classification:** To address short-read length constraints (~150 bp single-end reads) and resolve methodological concerns regarding family-level differential abundance, a custom Naive Bayes classifier was trained specifically for the amplified region. Utilizing **RESCRIPT** and QIIME 2 against the **SILVA 138.2** database, reference sequences were extracted via `qiime feature-classifier extract-reads` according to experimental primer specifications, trained via `qiime feature-classifier fit-classifier-naive-bayes` (`silva-138.2-v3-150-classifier.qza`), and applied to re-classify representative ASVs (`taxa-v3-150.qza`). 
 - **Phylogeny:** Representative sequences were aligned using MAFFT, non-conserved positions were masked, and a midpoint-rooted phylogenetic tree was constructed using FastTree via `q2-phylogeny`:
 
 ```bash
