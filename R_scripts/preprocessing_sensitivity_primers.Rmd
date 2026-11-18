@@ -1,0 +1,158 @@
+---
+title: "Preprocessing Sensitivity Analysis Workbook (Supplementary Data S1)"
+author: "Victor Guillermo Cornejo Villanueva"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 1. Environment Setup
+```{r setup, message=FALSE, warning=FALSE}
+library(phyloseq)
+library(ggplot2)
+library(qiime2R)
+library(dplyr)
+library(tibble)
+library(vegan)
+library(writexl)
+library(ANCOMBC)
+library(TreeSummarizedExperiment)
+library(S4Vectors)
+
+# Set working directory to project root
+setwd("~/Escritorio/R/2026_COPROFAGIA/coprofagia/cutadapt_comparison")
+
+# Ensure output directory exists
+output_dir <- "sensitivity_analysis_outputs"
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+}
+```
+
+# 2. Import Trimmed QIIME 2 Artifacts (Cutadapt Preprocessing Sensitivity)
+```{r}
+# Load feature table, taxonomy, tree, and metadata for the explicit cutadapt-trimmed workflow
+physeq_trimmed <- qza_to_phyloseq(
+  features = "filtered-table-genus-trimmed.qza",
+  tree = "tree-trimmed/rooted_tree.qza",
+  taxonomy = "taxa-trimmed.qza",
+  metadata = "metadata.tsv"
+)
+
+# Remove Archaea and Eukaryota
+physeq_trimmed_clean <- subset_taxa(physeq_trimmed, Kingdom != "d__Archaea")
+physeq_trimmed_clean <- subset_taxa(physeq_trimmed_clean, Kingdom != "d__Eukaryota")
+
+# Enforce cohort factor ordering: CON -> SCP -> CP
+sample_data(physeq_trimmed_clean)$group <- factor(
+  sample_data(physeq_trimmed_clean)$group, 
+  levels = c("CON", "SCP", "CP")
+)
+
+physeq_trimmed_clean
+```
+
+# 3. Compute Diversity Metrics and PERMANOVA for Sensitivity Report
+```{r}
+# 1. Alpha Diversity Calculation (Observed, Chao1, Shannon)
+alpha_trim_df <- estimate_richness(physeq_trimmed_clean, measures = c("Observed", "Chao1", "Shannon"))
+alpha_trim_df$SampleID <- rownames(alpha_trim_df)
+alpha_trim_df <- merge(alpha_trim_df, data.frame(sample_data(physeq_trimmed_clean)), by.x = "SampleID", by.y = "row.names")
+
+# Save individual CSV
+write.csv(alpha_trim_df, file.path(output_dir, "Alpha_Diversity_Trimmed_Sensitivity.csv"), row.names = FALSE)
+
+# 2. Beta Diversity Matrices (Bray-Curtis & Unweighted UniFrac)
+otu_trimmed_mat <- as(otu_table(physeq_trimmed_clean), "matrix")
+if (!taxa_are_rows(physeq_trimmed_clean)) { otu_trimmed_mat <- t(otu_trimmed_mat) }
+
+bc_trim_dist <- vegdist(t(otu_trimmed_mat), method = "bray")
+uw_trim_dist <- UniFrac(physeq_trimmed_clean, weighted = FALSE, normalized = TRUE)
+
+# 3. PERMANOVA Evaluation
+metadata_trim <- data.frame(sample_data(physeq_trimmed_clean))
+permanova_bc_trim <- adonis2(bc_trim_dist ~ group, data = metadata_trim, permutations = 1000)
+permanova_uw_trim <- adonis2(uw_trim_dist ~ group, data = metadata_trim, permutations = 1000)
+
+# Export text logs
+capture.output(permanova_bc_trim, file = file.path(output_dir, "PERMANOVA_BrayCurtis_Trimmed.txt"))
+capture.output(permanova_uw_trim, file = file.path(output_dir, "PERMANOVA_UnweightedUniFrac_Trimmed.txt"))
+```
+
+# 4. Compositionally Aware Differential Abundance (ANCOM-BC2) on Trimmed Data
+```{r}
+# 1. Agglomerate trimmed counts at Family level
+physeq_fam_trim <- tax_glom(physeq_trimmed_clean, taxrank = "Family")
+
+# 2. Extract counts and taxonomy
+counts_trim <- as(physeq_fam_trim@otu_table, "matrix")
+if (!taxa_are_rows(physeq_fam_trim)) { counts_trim <- t(counts_trim) }
+
+tax_trim_mat <- as(physeq_fam_trim@tax_table, "matrix")
+fam_trim_names <- as.character(tax_trim_mat[, "Family"])
+fam_trim_names[is.na(fam_trim_names) | fam_trim_names == ""] <- "Unclassified_Family"
+rownames(counts_trim) <- make.unique(fam_trim_names)
+
+# 3. Metadata setup
+meta_trim_df <- data.frame(
+  group = as.character(physeq_fam_trim@sam_data$group),
+  row.names = rownames(physeq_fam_trim@sam_data),
+  stringsAsFactors = FALSE
+)
+meta_trim_df$group <- factor(meta_trim_df$group, levels = c("CON", "SCP", "CP"))
+
+# 4. TreeSummarizedExperiment & ANCOM-BC2 execution
+tse_trim <- TreeSummarizedExperiment(
+  assays = list(counts = counts_trim),
+  colData = S4Vectors::DataFrame(meta_trim_df)
+)
+
+set.seed(123)
+ancom_trim_out <- ancombc2(
+  data = tse_trim,
+  assay_name = "counts",
+  tax_level = NULL,
+  fix_formula = "group",
+  p_adj_method = "BH",
+  prv_cut = 0.10,
+  group = "group",
+  struc_zero = TRUE,
+  neg_lb = TRUE,
+  pairwise = TRUE,
+  verbose = FALSE
+)
+
+res_ancom_trim <- ancom_trim_out$res_pair
+write.csv(res_ancom_trim, file.path(output_dir, "ANCOMBC2_Trimmed_Preprocessing_Results.csv"), row.names = FALSE)
+```
+
+# 5. Compile and Export Multi-Sheet Workbook as Supplementary Data S1
+```{r}
+# Read generated files safely for the Excel workbook
+df_alpha_trim <- tryCatch({
+  read.csv(file.path(output_dir, "Alpha_Diversity_Trimmed_Sensitivity.csv"))
+}, error = function(e) { data.frame(Note = "Alpha diversity data unavailable") })
+
+permanova_bc_file <- file.path(output_dir, "PERMANOVA_BrayCurtis_Trimmed.txt")
+df_permanova_summary <- if (file.exists(permanova_bc_file)) {
+  data.frame(Results_Summary = readLines(permanova_bc_file))
+} else {
+  data.frame(Results_Summary = "PERMANOVA Bray-Curtis text summary not found.")
+}
+
+df_ancom_trim <- tryCatch({
+  read.csv(file.path(output_dir, "ANCOMBC2_Trimmed_Preprocessing_Results.csv"))
+}, error = function(e) { data.frame(Note = "ANCOM-BC2 results unavailable") })
+
+# Create the named list for Excel sheets
+supplementary_s1_workbook <- list(
+  "Preprocessing_Stats" = df_alpha_trim,
+  "PERMANOVA_Summary"   = df_permanova_summary,
+  "ANCOMBC2_Pairwise"   = df_ancom_trim
+)
+
+# Export workbook
+output_filename <- "Supplementary Data S1. Preprocessing Sensitivity Analysis.xlsx"
+write_xlsx(supplementary_s1_workbook, path = output_filename)
+
+cat("Successfully compiled and generated multi-sheet workbook:", output_filename, "\n")
+```
