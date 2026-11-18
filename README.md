@@ -14,7 +14,7 @@ This repository contains the complete, reproducible computational infrastructure
 * **NCBI SRA BioProject Accession:** [PRJNA1480827](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA1480827)
 * **SRA BioSample Accessions:** `SAMN61041669` – `SAMN61041689` ($n = 21$ cecal samples)
 * **Target Marker Gene:** 16S rRNA gene (Hypervariable regions V3–V4)
-* **Sequencing Platform:** Illumina MiSeq (Single-End reads)
+* **Sequencing Platform:** Illumina MiniSeq (Single-End reads, ~150 bp)
 * **Experimental Design & Standardized Cohort Hierarchy ($n = 7$ per group):**
   $$\text{CON (Intact Control)} \longrightarrow \text{SCP (Sham-Operated Control)} \longrightarrow \text{CP (Cecotrophy-Prevention)}$$
 
@@ -182,7 +182,7 @@ bash qiime2/run_tree.sh
 ```
 
 ### 3. Alpha & Beta Diversity Normalization
-* **Rarefaction Depth:** To control for differences in sequencing depth while preserving sample inclusion, feature tables were rarefied to an even depth of **15,000 reads per sample**.
+* **Rarefaction & Normalization:** To preserve sample inclusion and avoid data loss, the ASV table was **not rarefied** for the reported diversity analyses; models and distance matrices were computed directly from unrarefied relative abundances across observed library sizes (8,945–19,507 reads).
 * **Alpha Metrics:** Observed ASVs, Chao1 richness, Shannon diversity index, and Faith's Phylogenetic Diversity.
 * **Beta Diversity:** Distance matrices (Bray–Curtis, Jaccard, Weighted UniFrac, and Unweighted UniFrac) were tested for community structure divergence using PERMANOVA (`adonis2`, 999 permutations, `set.seed(123)`).
 
