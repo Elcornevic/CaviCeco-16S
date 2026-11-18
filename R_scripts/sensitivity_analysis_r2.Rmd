@@ -34,7 +34,7 @@ library(tibble)
 
 # 2. Import R1 Primary Artifacts & Run ANCOM-BC2 Pipeline
 ```{r}
-# 2.1 Construct Phyloseq Object using primary V3 taxonomy artifacts
+# 2.1 Construct Phyloseq Object using primary taxonomy artifacts
 physeq_R1_raw <- qza_to_phyloseq(
   features = "filtered-table-genus.qza",
   tree = "tree/rooted_tree.qza",
